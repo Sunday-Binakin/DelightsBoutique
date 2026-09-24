@@ -1,4 +1,5 @@
 import { seedOrders } from "@/lib/data/orders";
+import { addOrderNotification } from "@/lib/notifications";
 
 export type PaymentMethod = "Bank Transfer" | "Mobile Money" | "Cash on Delivery/Pickup";
 export type FulfillmentMethod = "Delivery" | "Pickup";
@@ -91,6 +92,7 @@ export function createOrder(input: Omit<Order, "id" | "createdAt" | "status">): 
     status: "Pending Confirmation",
   };
   writeAll([...readAll(), order]);
+  addOrderNotification(order);
   return order;
 }
 

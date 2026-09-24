@@ -19,7 +19,7 @@ export function ProductCard({ product }: { product: Product }) {
           </span>
         )}
         <div className="absolute right-3 top-3">
-          <WishlistButton productName={product.name} />
+          <WishlistButton slug={product.slug} productName={product.name} />
         </div>
       </div>
       <div className="mt-3">

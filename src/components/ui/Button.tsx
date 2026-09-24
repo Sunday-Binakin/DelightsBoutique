@@ -1,12 +1,13 @@
 import Link from "next/link";
 import type { ComponentPropsWithoutRef } from "react";
 
-type Variant = "primary" | "outline" | "ghost";
+type Variant = "primary" | "outline" | "ghost" | "danger";
 
 const VARIANT_CLASSES: Record<Variant, string> = {
   primary: "bg-primary text-white hover:bg-primary-dark",
   outline: "border border-current bg-transparent hover:bg-foreground/5",
   ghost: "bg-transparent hover:bg-foreground/5",
+  danger: "bg-red-600 text-white hover:bg-red-700",
 };
 
 const BASE_CLASSES =

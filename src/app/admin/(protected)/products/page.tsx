@@ -187,17 +187,33 @@ export default function AdminProductsPage() {
             const count = products.filter((p) => p.categorySlug === category.slug).length;
             const active = selectedCategory === category.slug;
             return (
-              <button
+              <div
                 key={category.slug}
-                type="button"
-                onClick={() => selectCategory(category.slug)}
-                className={`flex items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${
+                className={`flex items-center rounded-lg text-sm font-medium transition-colors ${
                   active ? "bg-primary text-white" : "text-foreground/80 hover:bg-muted"
                 }`}
               >
-                {category.name}
-                <span className={active ? "text-white/80" : "text-muted-foreground"}>{count}</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => selectCategory(category.slug)}
+                  className="flex flex-1 items-center justify-between px-3 py-2 text-left"
+                >
+                  {category.name}
+                  <span className={active ? "text-white/80" : "text-muted-foreground"}>
+                    {count}
+                  </span>
+                </button>
+                <Link
+                  href={`/admin/categories/${category.slug}/edit`}
+                  title={`Edit ${category.name}`}
+                  aria-label={`Edit ${category.name}`}
+                  className={`mr-1.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-colors ${
+                    active ? "text-white/80 hover:bg-white/20" : "text-foreground/50 hover:bg-border-subtle hover:text-primary"
+                  }`}
+                >
+                  <EditIcon className="h-3.5 w-3.5" />
+                </Link>
+              </div>
             );
           })}
         </aside>

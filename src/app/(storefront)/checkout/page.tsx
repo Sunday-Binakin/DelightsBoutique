@@ -5,16 +5,12 @@ import { useRouter } from "next/navigation";
 import { useCart } from "@/lib/cart-context";
 import { getProductBySlug } from "@/lib/product-store";
 import { createOrder, type FulfillmentMethod, type PaymentMethod } from "@/lib/orders";
+import { useSiteSettings } from "@/lib/use-site-settings";
+import { useStorefrontCopy } from "@/lib/use-storefront-copy";
 import { OrderItemsSummary } from "@/components/cart/OrderItemsSummary";
 import { Button } from "@/components/ui/Button";
 
 const PAYMENT_METHODS: PaymentMethod[] = ["Bank Transfer", "Mobile Money", "Cash on Delivery/Pickup"];
-
-const PAYMENT_INSTRUCTIONS: Record<PaymentMethod, string> = {
-  "Bank Transfer": "Transfer to Delight's Boutique — GCB Bank, Acct 001-234-5678. Send your proof of payment via WhatsApp after ordering.",
-  "Mobile Money": "Send to MoMo number 024-000-0000 (Delight's Boutique). Send your proof of payment via WhatsApp after ordering.",
-  "Cash on Delivery/Pickup": "Pay in cash when your order is delivered or picked up.",
-};
 
 const inputClasses =
   "w-full rounded-lg border border-border-subtle bg-background px-3.5 py-2.5 text-sm outline-none focus:border-primary";
@@ -22,6 +18,13 @@ const inputClasses =
 export default function CheckoutPage() {
   const router = useRouter();
   const { lines, clear } = useCart();
+  const settings = useSiteSettings();
+  const copy = useStorefrontCopy();
+  const paymentInstructions: Record<PaymentMethod, string> = {
+    "Bank Transfer": settings.bankTransferInstructions,
+    "Mobile Money": settings.mobileMoneyInstructions,
+    "Cash on Delivery/Pickup": settings.cashInstructions,
+  };
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [fulfillment, setFulfillment] = useState<FulfillmentMethod>("Delivery");
@@ -162,7 +165,7 @@ export default function CheckoutPage() {
               ))}
             </div>
             <p className="mt-3 rounded-lg bg-muted px-3.5 py-2.5 text-sm text-muted-foreground">
-              {PAYMENT_INSTRUCTIONS[paymentMethod]}
+              {paymentInstructions[paymentMethod]}
             </p>
           </fieldset>
 
@@ -183,10 +186,7 @@ export default function CheckoutPage() {
           <div className="mt-4">
             <OrderItemsSummary items={items} />
           </div>
-          <p className="mt-3 text-xs text-muted-foreground">
-            Your order will be marked &quot;Pending Confirmation&quot; — we&apos;ll reach out on
-            WhatsApp or by phone to confirm payment and delivery.
-          </p>
+          <p className="mt-3 text-xs text-muted-foreground">{copy.checkoutDisclaimer}</p>
           <Button type="submit" className="mt-5 w-full">
             Place Order
           </Button>

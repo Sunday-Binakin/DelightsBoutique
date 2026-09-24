@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCart, type CartLine } from "@/lib/cart-context";
 import { getProductBySlug } from "@/lib/product-store";
+import { useStorefrontCopy } from "@/lib/use-storefront-copy";
 import { formatPrice } from "@/lib/format";
 import { ProductVisual } from "@/components/ui/ProductVisual";
 import { QuantityStepper } from "@/components/ui/QuantityStepper";
@@ -56,6 +57,7 @@ function CartLineRow({ line }: { line: CartLine }) {
 
 export default function CartPage() {
   const { lines } = useCart();
+  const copy = useStorefrontCopy();
 
   const subtotal = lines.reduce((sum, line) => {
     const product = getProductBySlug(line.slug);
@@ -96,10 +98,7 @@ export default function CartPage() {
             <span className="text-muted-foreground">Subtotal</span>
             <span className="font-medium text-foreground">{formatPrice(subtotal)}</span>
           </div>
-          <p className="mt-3 text-xs text-muted-foreground">
-            Delivery/pickup and final payment are arranged with the admin after you submit your
-            order — no payment is taken on this site.
-          </p>
+          <p className="mt-3 text-xs text-muted-foreground">{copy.cartDisclaimer}</p>
           <LinkButton href="/checkout" className="mt-5 w-full">
             Proceed to Checkout
           </LinkButton>

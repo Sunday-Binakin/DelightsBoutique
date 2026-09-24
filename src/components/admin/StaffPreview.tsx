@@ -92,10 +92,14 @@ export function StaffPreview({ staff, onUpdate }: StaffPreviewProps) {
       </div>
 
       <div className="mt-5 flex gap-3">
-        <Button variant="outline" className="flex-1" onClick={handleToggleActive}>
+        <Button
+          variant={staff.active ? "danger" : "primary"}
+          className="flex-1"
+          onClick={handleToggleActive}
+        >
           {staff.active ? "Deactivate" : "Reactivate"}
         </Button>
-        <Button variant="outline" className="flex-1" onClick={handleResetPassword}>
+        <Button variant="primary" className="flex-1" onClick={handleResetPassword}>
           Reset Password
         </Button>
       </div>

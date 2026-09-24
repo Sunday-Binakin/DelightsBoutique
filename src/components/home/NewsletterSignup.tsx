@@ -1,16 +1,19 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { useStorefrontCopy } from "@/lib/use-storefront-copy";
+import { addSubscriber } from "@/lib/newsletter";
 import { MailIcon } from "@/components/ui/icons";
 import { Button } from "@/components/ui/Button";
 
-// Client-only for now — wire the submit handler to a real subscribe
-// endpoint once the backend exists.
 export function NewsletterSignup() {
+  const copy = useStorefrontCopy();
+  const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    addSubscriber(email);
     setSubmitted(true);
   }
 
@@ -19,16 +22,14 @@ export function NewsletterSignup() {
       <div className="rounded-2xl bg-primary/10 px-6 py-10 text-center">
         <MailIcon className="mx-auto h-8 w-8 text-primary" />
         <h2 className="mt-3 font-serif text-2xl font-semibold text-foreground">
-          Join Our Newsletter
+          {copy.newsletterHeading}
         </h2>
         <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-          Be the first to hear about new arrivals, restocks, and offers. Unsubscribe any time.
+          {copy.newsletterSubtext}
         </p>
 
         {submitted ? (
-          <p className="mt-6 text-sm font-medium text-primary">
-            Thanks for subscribing — watch your inbox!
-          </p>
+          <p className="mt-6 text-sm font-medium text-primary">{copy.newsletterSuccessMessage}</p>
         ) : (
           <form
             onSubmit={handleSubmit}
@@ -37,6 +38,8 @@ export function NewsletterSignup() {
             <input
               type="email"
               required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               placeholder="Email address"
               className="w-full rounded-full border border-border-subtle bg-background px-4 py-2.5 text-sm outline-none focus:border-primary"
             />

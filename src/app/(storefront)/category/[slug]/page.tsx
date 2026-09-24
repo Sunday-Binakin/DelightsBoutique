@@ -1,32 +1,47 @@
-"use client";
+import type { Metadata } from "next";
+import { categories } from "@/lib/data/categories";
+import { SITE } from "@/lib/constants";
+import { CategoryPageClient } from "./CategoryPageClient";
 
-import { useParams } from "next/navigation";
-import { useCategories } from "@/lib/use-categories";
-import { useProducts } from "@/lib/use-products";
-import { CatalogView } from "@/components/catalog/CatalogView";
-import { LinkButton } from "@/components/ui/Button";
+interface CategoryPageProps {
+  params: Promise<{ slug: string }>;
+}
 
-export default function CategoryPage() {
-  const { slug } = useParams<{ slug: string }>();
-  const category = useCategories().find((c) => c.slug === slug);
-  const products = useProducts().filter((product) => product.categorySlug === slug);
+// Same caveat as product/[slug]: a category the admin added after the seed
+// still renders correctly, it just falls back to generic metadata here
+// since the server can't see localStorage.
+export async function generateMetadata({ params }: CategoryPageProps): Promise<Metadata> {
+  const { slug } = await params;
+  const category = categories.find((c) => c.slug === slug);
 
   if (!category) {
-    return (
-      <div className="mx-auto max-w-7xl px-4 py-20 text-center">
-        <h1 className="font-serif text-2xl font-semibold text-foreground">Category not found</h1>
-        <LinkButton href="/" className="mt-6">
-          Back to Home
-        </LinkButton>
-      </div>
-    );
+    return { title: "Shop" };
   }
 
-  return (
-    <CatalogView
-      title={category.name}
-      subtitle={`Browse our full ${category.name.toLowerCase()} collection — retail and wholesale pricing available.`}
-      products={products}
-    />
-  );
+  const description = `Browse our full ${category.name.toLowerCase()} collection — retail and wholesale pricing available.`;
+  const socialTitle = `${category.name} | ${SITE.name}`;
+  return {
+    title: category.name,
+    description,
+    // openGraph/twitter don't merge with the root layout's — every field
+    // we want (image, site name, card type) has to be repeated here.
+    openGraph: {
+      title: socialTitle,
+      description,
+      siteName: SITE.name,
+      type: "website",
+      images: ["/opengraph-image"],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: socialTitle,
+      description,
+      images: ["/opengraph-image"],
+    },
+  };
+}
+
+export default async function CategoryPage({ params }: CategoryPageProps) {
+  const { slug } = await params;
+  return <CategoryPageClient slug={slug} />;
 }

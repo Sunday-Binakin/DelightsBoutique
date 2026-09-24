@@ -6,9 +6,10 @@ import { readImageFile } from "@/lib/image-upload";
 interface ImageUploadProps {
   value?: string;
   onChange: (dataUrl: string | undefined) => void;
+  label?: string;
 }
 
-export function ImageUpload({ value, onChange }: ImageUploadProps) {
+export function ImageUpload({ value, onChange, label = "Photo" }: ImageUploadProps) {
   const [error, setError] = useState("");
 
   async function handleFile(file: File | undefined) {
@@ -27,7 +28,7 @@ export function ImageUpload({ value, onChange }: ImageUploadProps) {
 
   return (
     <div className="flex flex-col gap-1.5">
-      <p className="text-sm font-medium text-foreground">Product Photo</p>
+      <p className="text-sm font-medium text-foreground">{label}</p>
       <div className="flex items-center gap-4">
         <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border-subtle bg-muted">
           {value ? (

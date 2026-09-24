@@ -1,3 +1,5 @@
+import { seedStaff } from "@/lib/data/staff";
+
 export const STAFF_PERMISSIONS = [
   "Manage Products",
   "Manage Orders",
@@ -24,9 +26,9 @@ const STORAGE_KEY = "delight-boutique-staff";
 function readAll(): StaffMember[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    return raw ? JSON.parse(raw) : seedStaff;
   } catch {
-    return [];
+    return seedStaff;
   }
 }
 

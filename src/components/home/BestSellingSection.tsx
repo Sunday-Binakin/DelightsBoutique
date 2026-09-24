@@ -1,29 +1,37 @@
 "use client";
 
 import { useState } from "react";
-import type { Product } from "@/lib/types";
 import { useProducts } from "@/lib/use-products";
+import { useCollectionSection } from "@/lib/use-collection-section";
+import { pickCollectionTabProducts } from "@/lib/collection-section";
 import { Tabs } from "@/components/ui/Tabs";
 import { ProductGridSection } from "@/components/home/ProductGridSection";
 
-const TAB_FILTERS: Record<string, (product: Product) => boolean> = {
-  "New Arrivals": (p) => p.badge === "New",
-  "Best Sellers": (p) => p.badge === "Best Seller",
-  "Wholesale Picks": (p) => Boolean(p.wholesalePrice),
-};
-
-const TABS = Object.keys(TAB_FILTERS);
-
 export function BestSellingSection() {
   const products = useProducts();
-  const [active, setActive] = useState(TABS[0]);
-  const visible = products.filter(TAB_FILTERS[active]);
+  const content = useCollectionSection();
+  const [activeIndex, setActiveIndex] = useState<0 | 1 | 2>(0);
+
+  const tabs = [content.newArrivalsLabel, content.bestSellersLabel, content.wholesalePicksLabel];
+  const curatedSlugs = [content.newArrivalsSlugs, content.bestSellersSlugs, content.wholesalePicksSlugs][
+    activeIndex
+  ];
+  const visible = pickCollectionTabProducts(products, curatedSlugs, activeIndex);
 
   return (
     <ProductGridSection
-      eyebrow="Handpicked for You"
-      title="Shop the Collection"
-      header={<Tabs tabs={TABS} active={active} onChange={setActive} />}
+      eyebrow={content.eyebrow}
+      title={content.title}
+      header={
+        <Tabs
+          tabs={tabs}
+          active={tabs[activeIndex]}
+          onChange={(label) => {
+            const index = tabs.indexOf(label);
+            if (index === 0 || index === 1 || index === 2) setActiveIndex(index);
+          }}
+        />
+      }
       products={visible.length ? visible : products.slice(0, 4)}
     />
   );

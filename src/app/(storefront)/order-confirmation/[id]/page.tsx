@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { getOrder, type Order } from "@/lib/orders";
-import { buildWhatsAppLink } from "@/lib/constants";
+import { useSiteSettings } from "@/lib/use-site-settings";
+import { buildWhatsAppLink } from "@/lib/site-settings";
 import { OrderItemsSummary } from "@/components/cart/OrderItemsSummary";
 import { OrderStatusBadge } from "@/components/ui/OrderStatusBadge";
 import { LinkButton } from "@/components/ui/Button";
@@ -12,6 +13,7 @@ import { WhatsAppIcon } from "@/components/ui/icons";
 export default function OrderConfirmationPage() {
   const { id } = useParams<{ id: string }>();
   const [order, setOrder] = useState<Order | null | undefined>(undefined);
+  const settings = useSiteSettings();
 
   useEffect(() => {
     // Orders live in localStorage, unreadable during SSR — look the order
@@ -86,7 +88,10 @@ export default function OrderConfirmationPage() {
 
       <div className="mt-6 flex flex-col gap-3 sm:flex-row">
         <a
-          href={buildWhatsAppLink(`Hello, I just placed order ${order.id} on the website.`)}
+          href={buildWhatsAppLink(
+            settings.whatsappNumber,
+            `Hello, I just placed order ${order.id} on the website.`,
+          )}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-[#25D366] px-5 py-2.5 text-sm font-medium text-white hover:opacity-90"

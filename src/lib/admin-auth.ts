@@ -62,6 +62,17 @@ export function adminSignIn(email: string): { ok: true } | { ok: false; error: s
   return { ok: true };
 }
 
+/** Keeps the active session's cached name/email in sync after a self-service profile edit. */
+export function updateSessionIdentity(updates: Partial<Pick<AdminSession, "name" | "email">>) {
+  const session = getAdminSession();
+  if (!session) return;
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ ...session, ...updates }));
+  } catch {
+    // Session just won't reflect the change until next login if storage is blocked.
+  }
+}
+
 export function adminSignOut() {
   try {
     localStorage.removeItem(SESSION_KEY);
@@ -86,7 +97,9 @@ export function getRequiredPermission(pathname: string): StaffPermission | "owne
   if (pathname.startsWith("/admin/products") || pathname.startsWith("/admin/categories")) {
     return "Manage Products";
   }
-  if (pathname.startsWith("/admin/orders")) return "Manage Orders";
+  if (pathname.startsWith("/admin/orders") || pathname.startsWith("/admin/notifications")) {
+    return "Manage Orders";
+  }
   if (pathname.startsWith("/admin/customers")) return "Manage Customers";
   if (pathname.startsWith("/admin/content")) return "Manage Content";
   return null;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getAllOrders, ORDER_STATUSES, type Order } from "@/lib/orders";
 import { formatPrice } from "@/lib/format";
 import { OrderStatusBadge } from "@/components/ui/OrderStatusBadge";
@@ -83,6 +83,15 @@ export default function AdminOrdersPage() {
   const [search, setSearch] = useState("");
   const [selectedStatus, setSelectedStatus] = useState<string>(ALL);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Arriving from a notification click — jump straight to that order.
+    const highlight = new URLSearchParams(window.location.search).get("highlight");
+    if (highlight) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time deep-link on mount
+      setSelectedId(highlight);
+    }
+  }, []);
 
   function refresh() {
     setOrders([...getAllOrders()].reverse());

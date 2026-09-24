@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useWishlist } from "@/lib/wishlist-context";
 import { HeartIcon } from "@/components/ui/icons";
 
-// Local-only toggle for now — no wishlist persistence until the backend exists.
-export function WishlistButton({ productName }: { productName: string }) {
-  const [saved, setSaved] = useState(false);
+export function WishlistButton({ slug, productName }: { slug: string; productName: string }) {
+  const { isSaved, toggle } = useWishlist();
+  const saved = isSaved(slug);
 
   return (
     <button
@@ -15,7 +15,7 @@ export function WishlistButton({ productName }: { productName: string }) {
       onClick={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        setSaved((v) => !v);
+        toggle(slug);
       }}
       className="flex h-8 w-8 items-center justify-center rounded-full bg-background/90 text-foreground shadow transition-colors hover:text-primary"
     >

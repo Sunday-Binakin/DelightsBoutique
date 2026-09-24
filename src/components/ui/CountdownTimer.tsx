@@ -19,15 +19,16 @@ const UNITS: Array<{ key: keyof ReturnType<typeof getRemaining>; label: string }
   { key: "seconds", label: "Sec" },
 ];
 
-/** Counts down to a fixed offset from when the component mounts. */
-export function CountdownTimer({ durationHours = 72 }: { durationHours?: number }) {
-  const [target] = useState(() => Date.now() + durationHours * 60 * 60 * 1000);
-  const [remaining, setRemaining] = useState(() => getRemaining(target));
+/** Counts down to a fixed point in time. */
+export function CountdownTimer({ endsAt }: { endsAt: number }) {
+  const [remaining, setRemaining] = useState(() => getRemaining(endsAt));
 
   useEffect(() => {
-    const id = setInterval(() => setRemaining(getRemaining(target)), 1000);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resync when endsAt changes (e.g. admin edits it live)
+    setRemaining(getRemaining(endsAt));
+    const id = setInterval(() => setRemaining(getRemaining(endsAt)), 1000);
     return () => clearInterval(id);
-  }, [target]);
+  }, [endsAt]);
 
   return (
     <div className="flex gap-3">

@@ -6,6 +6,8 @@ export interface Category {
   slug: string;
   name: string;
   tone: PlaceholderTone;
+  /** Uploaded category photo (data URL) — falls back to the illustration when absent. */
+  imageUrl?: string;
 }
 
 export interface Product {
@@ -27,8 +29,8 @@ export interface Product {
   stockStatus: StockStatus;
   sizes?: string[];
   colors?: string[];
-  /** Uploaded product photo (data URL) — falls back to the category illustration when absent. */
-  imageUrl?: string;
+  /** Uploaded product photos (data URLs) — the first is the cover shown on cards/listings; falls back to the category illustration when empty. */
+  imageUrls?: string[];
 }
 
 export interface PromoBannerContent {
@@ -39,4 +41,8 @@ export interface PromoBannerContent {
   tone: PlaceholderTone;
   /** Category slug whose art illustrates this banner (see category-art.tsx). */
   artCategorySlug: string;
+  /** Uploaded banner photo (data URL) — falls back to the illustration when absent. */
+  imageUrl?: string;
+  /** Hex color for the eyebrow/title/button text laid over the banner image. */
+  textColor?: string;
 }

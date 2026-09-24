@@ -3,11 +3,13 @@
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { getOrdersByPhone, type Order } from "@/lib/orders";
+import { useStorefrontCopy } from "@/lib/use-storefront-copy";
 import { formatPrice } from "@/lib/format";
 import { OrderStatusBadge } from "@/components/ui/OrderStatusBadge";
 import { Button } from "@/components/ui/Button";
 
 export default function TrackOrderPage() {
+  const copy = useStorefrontCopy();
   const [phone, setPhone] = useState("");
   const [results, setResults] = useState<Order[] | null>(null);
 
@@ -19,10 +21,8 @@ export default function TrackOrderPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-12">
       <div className="text-center">
-        <h1 className="font-serif text-2xl font-semibold text-foreground">Track My Order</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Enter the phone number you used at checkout to see all your orders.
-        </p>
+        <h1 className="font-serif text-2xl font-semibold text-foreground">{copy.trackOrderHeading}</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{copy.trackOrderSubtext}</p>
       </div>
 
       <form onSubmit={handleSubmit} className="mx-auto mt-6 flex max-w-sm gap-3">

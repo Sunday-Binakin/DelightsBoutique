@@ -8,7 +8,7 @@ import { saveProduct, getAllProducts } from "@/lib/product-store";
 import { slugify } from "@/lib/format";
 import { logAction } from "@/lib/audit-log";
 import { Button } from "@/components/ui/Button";
-import { ImageUpload } from "@/components/admin/ImageUpload";
+import { MultiImageUpload } from "@/components/admin/MultiImageUpload";
 import { ProductPreview } from "@/components/admin/ProductPreview";
 
 const STOCK_OPTIONS: StockStatus[] = ["In Stock", "Low Stock", "Out of Stock"];
@@ -36,7 +36,7 @@ export function ProductForm({ initialProduct }: { initialProduct?: Product }) {
   const [badge, setBadge] = useState<string>(initialProduct?.badge ?? "None");
   const [sizes, setSizes] = useState(initialProduct?.sizes?.join(", ") ?? "");
   const [colors, setColors] = useState(initialProduct?.colors?.join(", ") ?? "");
-  const [imageUrl, setImageUrl] = useState<string | undefined>(initialProduct?.imageUrl);
+  const [imageUrls, setImageUrls] = useState<string[]>(initialProduct?.imageUrls ?? []);
   const [error, setError] = useState("");
 
   function handleNameChange(value: string) {
@@ -65,7 +65,7 @@ export function ProductForm({ initialProduct }: { initialProduct?: Product }) {
       stockStatus,
       sizes: sizes.trim() ? sizes.split(",").map((s) => s.trim()).filter(Boolean) : undefined,
       colors: colors.trim() ? colors.split(",").map((c) => c.trim()).filter(Boolean) : undefined,
-      imageUrl,
+      imageUrls: imageUrls.length ? imageUrls : undefined,
     };
   }
 
@@ -118,7 +118,7 @@ export function ProductForm({ initialProduct }: { initialProduct?: Product }) {
           />
         </label>
 
-        <ImageUpload value={imageUrl} onChange={setImageUrl} />
+        <MultiImageUpload value={imageUrls} onChange={setImageUrls} />
 
         <label className={labelClasses}>
           Category

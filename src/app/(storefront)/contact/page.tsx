@@ -1,39 +1,50 @@
-import { SITE, buildWhatsAppLink } from "@/lib/constants";
+"use client";
+
+import { useSiteSettings } from "@/lib/use-site-settings";
+import { useStorefrontCopy } from "@/lib/use-storefront-copy";
+import { buildWhatsAppLink } from "@/lib/site-settings";
 import { WhatsAppIcon, PhoneIcon, TruckIcon } from "@/components/ui/icons";
 
-const CONTACT_CARDS = [
-  {
-    icon: WhatsAppIcon,
-    title: "WhatsApp",
-    description: "Fastest way to reach us — order questions, follow-ups, and wholesale enquiries.",
-    action: { label: "Chat on WhatsApp", href: buildWhatsAppLink() },
-  },
-  {
-    icon: PhoneIcon,
-    title: "Phone",
-    description: `Call or text us directly, ${SITE.hours}.`,
-    action: { label: SITE.phoneDisplay, href: `tel:${SITE.phoneDisplay.replace(/\s/g, "")}` },
-  },
-  {
-    icon: TruckIcon,
-    title: "Visit or Pick Up",
-    description: SITE.address,
-    action: { label: "Get Directions", href: `https://maps.google.com/?q=${encodeURIComponent(SITE.address)}` },
-  },
-];
-
 export default function ContactPage() {
+  const settings = useSiteSettings();
+  const copy = useStorefrontCopy();
+
+  const contactCards = [
+    {
+      icon: WhatsAppIcon,
+      title: "WhatsApp",
+      description: "Fastest way to reach us — order questions, follow-ups, and wholesale enquiries.",
+      action: {
+        label: "Chat on WhatsApp",
+        href: buildWhatsAppLink(settings.whatsappNumber, settings.whatsappMessage),
+      },
+    },
+    {
+      icon: PhoneIcon,
+      title: "Phone",
+      description: `Call or text us directly, ${settings.hours}.`,
+      action: { label: settings.phoneDisplay, href: `tel:${settings.phoneDisplay.replace(/\s/g, "")}` },
+    },
+    {
+      icon: TruckIcon,
+      title: "Visit or Pick Up",
+      description: settings.address,
+      action: {
+        label: "Get Directions",
+        href: `https://maps.google.com/?q=${encodeURIComponent(settings.address)}`,
+      },
+    },
+  ];
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-12">
       <div className="text-center">
-        <h1 className="font-serif text-3xl font-semibold text-foreground">Get in Touch</h1>
-        <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">
-          Questions about an order, sizing, or wholesale pricing? Reach us any of these ways.
-        </p>
+        <h1 className="font-serif text-3xl font-semibold text-foreground">{copy.contactHeading}</h1>
+        <p className="mx-auto mt-2 max-w-xl text-sm text-muted-foreground">{copy.contactSubtext}</p>
       </div>
 
       <div className="mt-10 grid gap-6 sm:grid-cols-3">
-        {CONTACT_CARDS.map(({ icon: Icon, title, description, action }) => (
+        {contactCards.map(({ icon: Icon, title, description, action }) => (
           <div
             key={title}
             className="flex flex-col items-center gap-3 rounded-xl border border-border-subtle p-6 text-center"

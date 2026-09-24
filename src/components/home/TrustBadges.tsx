@@ -1,36 +1,29 @@
-import { buildWhatsAppLink } from "@/lib/constants";
+"use client";
+
+import { useSiteSettings } from "@/lib/use-site-settings";
+import { useStorefrontCopy } from "@/lib/use-storefront-copy";
+import { buildWhatsAppLink } from "@/lib/site-settings";
 import { QuestionIcon, WhatsAppIcon, TruckIcon } from "@/components/ui/icons";
 import { LinkButton } from "@/components/ui/Button";
 
-const BADGES = [
-  {
-    icon: QuestionIcon,
-    title: "Browse our FAQs",
-    description: "Answers about sizing, ordering, and payment.",
-    ctaLabel: "Read FAQs",
-    href: "/faqs",
-  },
-  {
-    icon: WhatsAppIcon,
-    title: "Chat with Us",
-    description: "Questions before you order? Message us directly.",
-    ctaLabel: "Chat on WhatsApp",
-    href: buildWhatsAppLink(),
-  },
-  {
-    icon: TruckIcon,
-    title: "Delivery & Returns",
-    description: "Delivery, pickup, and return policy details.",
-    ctaLabel: "Read More",
-    href: "/shipping",
-  },
-];
-
 export function TrustBadges() {
+  const settings = useSiteSettings();
+  const copy = useStorefrontCopy();
+
+  const badges = [
+    { icon: QuestionIcon, href: "/faqs", ...copy.trustBadges[0] },
+    {
+      icon: WhatsAppIcon,
+      href: buildWhatsAppLink(settings.whatsappNumber, settings.whatsappMessage),
+      ...copy.trustBadges[1],
+    },
+    { icon: TruckIcon, href: "/shipping", ...copy.trustBadges[2] },
+  ];
+
   return (
     <section className="mx-auto max-w-7xl px-4 py-10">
       <div className="grid gap-6 sm:grid-cols-3">
-        {BADGES.map(({ icon: Icon, title, description, ctaLabel, href }) => (
+        {badges.map(({ icon: Icon, title, description, ctaLabel, href }) => (
           <div
             key={title}
             className="flex flex-col items-center gap-3 rounded-xl border border-border-subtle p-6 text-center"
