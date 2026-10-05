@@ -7,6 +7,8 @@ import { server, API } from "@/test/server";
 import type { AdminOrderDto, OrderNotificationDto, Paginated, Unpaginated } from "@/lib/api/types";
 import { useUpdateOrderStatus } from "./use-admin-orders";
 import { useMarkNotificationRead } from "./use-admin-notifications";
+import { useDeleteProduct } from "./use-admin-catalog";
+import { makeProductDto } from "@/test/fixtures";
 
 function makeClient() {
   const client = new QueryClient({
@@ -79,6 +81,42 @@ describe("optimistic order status", () => {
     expect(client.getQueryData<Paginated<AdminOrderDto>>(["admin-orders", {}])?.data[0].status).toBe(
       "pendingConfirmation",
     );
+  });
+});
+
+describe("optimistic product delete", () => {
+  it("removes the product from the list before the server confirms, and restores it on failure", async () => {
+    const { client, wrapper } = makeClient();
+    const list = {
+      data: [makeProductDto({ slug: "silk-scarf" }), makeProductDto({ slug: "wool-hat" })],
+      page: 1,
+      limit: 20,
+      total: 2,
+    };
+    client.setQueryData(["products", {}], list);
+    const response = gate();
+    server.use(
+      http.delete(`${API}/api/admin/products/silk-scarf`, async () => {
+        await response.promise;
+        return HttpResponse.json({ error: { code: "INTERNAL_ERROR", message: "Oops." } }, { status: 500 });
+      }),
+    );
+
+    const { result } = renderHook(() => useDeleteProduct(), { wrapper });
+    act(() => {
+      result.current.mutate("silk-scarf");
+    });
+
+    await waitFor(() =>
+      expect(client.getQueryData<typeof list>(["products", {}])?.data.map((p) => p.slug)).toEqual(["wool-hat"]),
+    );
+    response.release();
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(client.getQueryData<typeof list>(["products", {}])?.data.map((p) => p.slug)).toEqual([
+      "silk-scarf",
+      "wool-hat",
+    ]);
   });
 });
 

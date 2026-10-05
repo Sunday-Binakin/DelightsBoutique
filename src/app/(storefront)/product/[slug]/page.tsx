@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { getProductBySlug } from "@/lib/api/products";
 import { SITE } from "@/lib/constants";
-import { SITE_URL, productJsonLd } from "@/lib/seo";
+import { SITE_URL, breadcrumbJsonLd, productJsonLd } from "@/lib/seo";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { ProductPageClient } from "./ProductPageClient";
 
@@ -46,7 +46,18 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const product = await getProductBySlug(slug).catch(() => null);
   return (
     <>
-      {product && <JsonLd data={productJsonLd(product)} />}
+      {product && (
+        <>
+          <JsonLd data={productJsonLd(product)} />
+          <JsonLd
+            data={breadcrumbJsonLd([
+              { name: "Home", path: "/" },
+              { name: product.category, path: `/category/${product.categorySlug}` },
+              { name: product.name, path: `/product/${product.slug}` },
+            ])}
+          />
+        </>
+      )}
       <ProductPageClient slug={slug} />
     </>
   );

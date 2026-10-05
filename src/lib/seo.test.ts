@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { productJsonLd } from "./seo";
+import { breadcrumbJsonLd, productJsonLd } from "./seo";
 import { makeProductDto } from "@/test/fixtures";
 
 describe("productJsonLd", () => {
@@ -31,5 +31,21 @@ describe("productJsonLd", () => {
   it("includes an aggregate rating once there are reviews", () => {
     const data = productJsonLd(makeProductDto({ slug: "scarf", rating: 4.5, reviewCount: 12 }));
     expect(data).toMatchObject({ aggregateRating: { ratingValue: 4.5, reviewCount: 12 } });
+  });
+});
+
+describe("breadcrumbJsonLd", () => {
+  it("numbers the trail from one with absolute item URLs", () => {
+    const data = breadcrumbJsonLd([
+      { name: "Home", path: "/" },
+      { name: "Dresses", path: "/category/dresses" },
+    ]);
+    expect(data).toMatchObject({
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "Home", item: "http://localhost:3000/" },
+        { "@type": "ListItem", position: 2, name: "Dresses", item: "http://localhost:3000/category/dresses" },
+      ],
+    });
   });
 });

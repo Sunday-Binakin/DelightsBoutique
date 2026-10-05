@@ -15,6 +15,7 @@ import {
   fromCategory,
 } from "@/lib/api/categories";
 import type { Product, Category } from "@/lib/types";
+import type { Paginated, ProductDto } from "@/lib/api/types";
 
 function invalidateCatalog(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: ["products"] });
@@ -36,7 +37,22 @@ export function useDeleteProduct() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (slug: string) => deleteProductApi(slug),
-    onSuccess: () => invalidateCatalog(queryClient),
+    onMutate: async (slug) => {
+      await queryClient.cancelQueries({ queryKey: ["products"] });
+      const lists = queryClient.getQueriesData<Paginated<ProductDto>>({ queryKey: ["products"] });
+      queryClient.setQueriesData<Paginated<ProductDto>>({ queryKey: ["products"] }, (old) =>
+        old && {
+          ...old,
+          data: old.data.filter((p) => p.slug !== slug),
+          total: old.data.some((p) => p.slug === slug) ? old.total - 1 : old.total,
+        },
+      );
+      return { lists };
+    },
+    onError: (_err, _slug, context) => {
+      context?.lists.forEach(([key, data]) => queryClient.setQueryData(key, data));
+    },
+    onSettled: () => invalidateCatalog(queryClient),
   });
 }
 

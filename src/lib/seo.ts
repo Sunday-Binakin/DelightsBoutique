@@ -9,6 +9,19 @@ const AVAILABILITY: Record<ProductDto["stockStatus"], string> = {
   outOfStock: "https://schema.org/OutOfStock",
 };
 
+export function breadcrumbJsonLd(items: Array<{ name: string; path: string }>) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: items.map((item, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: item.name,
+      item: `${SITE_URL}${item.path}`,
+    })),
+  };
+}
+
 /** schema.org Product data. Inline data-URL photos are left out: crawlers can't fetch them. */
 export function productJsonLd(product: ProductDto) {
   const url = `${SITE_URL}/product/${product.slug}`;
