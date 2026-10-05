@@ -1,14 +1,28 @@
 "use client";
 
-import { useProducts } from "@/lib/use-products";
+import { useState } from "react";
+import { useProductsBySlug } from "@/lib/use-products";
 import { useWishlist } from "@/lib/wishlist-context";
+import {
+  DEFAULT_CATALOG_FILTERS,
+  applyLocalCatalogFilters,
+  catalogOptions,
+  type CatalogFilters,
+} from "@/lib/catalog-filters";
 import { CatalogView } from "@/components/catalog/CatalogView";
+import { LoadingBlock } from "@/components/ui/Spinner";
+import { QueryError } from "@/components/ui/QueryError";
 
 export default function WishlistPage() {
-  const products = useProducts();
   const { slugs } = useWishlist();
+  const { bySlug, isLoading, isError, refetch } = useProductsBySlug(slugs);
+  const [filters, setFilters] = useState<CatalogFilters>(DEFAULT_CATALOG_FILTERS);
 
-  const saved = products.filter((product) => slugs.includes(product.slug));
+  if (slugs.length > 0 && isLoading) return <LoadingBlock />;
+  if (slugs.length > 0 && isError) return <QueryError label="your wishlist" onRetry={refetch} />;
+
+  const saved = slugs.map((slug) => bySlug.get(slug)).filter((p) => p !== undefined);
+  const visible = applyLocalCatalogFilters(saved, filters);
 
   return (
     <CatalogView
@@ -18,7 +32,12 @@ export default function WishlistPage() {
           ? `${saved.length} saved item${saved.length === 1 ? "" : "s"}.`
           : "Tap the heart on any product to save it here."
       }
-      products={saved}
+      products={visible}
+      total={visible.length}
+      filters={filters}
+      onFiltersChange={setFilters}
+      sizeOptions={catalogOptions(saved, filters.sizes, "sizes")}
+      colorOptions={catalogOptions(saved, filters.colors, "colors")}
     />
   );
 }

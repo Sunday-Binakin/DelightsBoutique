@@ -1,14 +1,24 @@
 "use client";
 
 import { useState } from "react";
-import { getAllCustomers, type CustomerSummary } from "@/lib/customers";
+import type { CustomerSummary } from "@/lib/customers";
+import {
+  ADMIN_CUSTOMERS_PAGE_SIZE,
+  useAdminCustomersList,
+  useCustomerCounts,
+} from "@/lib/use-admin-customers";
 import { formatPrice } from "@/lib/format";
 import { CustomerPreview } from "@/components/admin/CustomerPreview";
 import { Breadcrumb } from "@/components/admin/Breadcrumb";
+import { LoadingBlock } from "@/components/ui/Spinner";
+import { QueryError } from "@/components/ui/QueryError";
+import { Pagination } from "@/components/ui/Pagination";
+import { usePagedState } from "@/lib/use-paged-state";
 
 const ALL = "all";
 const WHOLESALE = "wholesale";
 const RETAIL = "retail";
+type Filter = typeof ALL | typeof WHOLESALE | typeof RETAIL;
 
 function CustomersTable({
   customers,
@@ -81,34 +91,36 @@ function CustomersTable({
 }
 
 export default function AdminCustomersPage() {
-  const [customers, setCustomers] = useState<CustomerSummary[]>(() => getAllCustomers());
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<string>(ALL);
+  const [filter, setFilter] = useState<Filter>(ALL);
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
+  const trimmedSearch = search.trim();
+  const [page, setPage] = usePagedState(`${filter}|${trimmedSearch}`);
 
-  function refresh() {
-    setCustomers(getAllCustomers());
-  }
+  const {
+    customers: visible,
+    total: listTotal,
+    isLoading: loadingCustomers,
+    isError: customersErrored,
+    refetch: refetchCustomers,
+  } = useAdminCustomersList({
+    search: trimmedSearch || undefined,
+    customerType: filter === WHOLESALE ? "wholesale" : filter === RETAIL ? "retail" : undefined,
+    page,
+    limit: ADMIN_CUSTOMERS_PAGE_SIZE,
+  });
+  const {
+    total: totalCount,
+    retail: retailCount,
+    wholesale: wholesaleCount,
+    isLoading: loadingTotal,
+    isError: totalErrored,
+  } = useCustomerCounts();
 
-  function selectFilter(value: string) {
+  function selectFilter(value: Filter) {
     setFilter(value);
     setSelectedPhone(null);
   }
-
-  const wholesaleCount = customers.filter((c) => c.wholesale).length;
-
-  const query = search.trim().toLowerCase();
-  const inFilter =
-    filter === WHOLESALE
-      ? customers.filter((c) => c.wholesale)
-      : filter === RETAIL
-        ? customers.filter((c) => !c.wholesale)
-        : customers;
-  const visible = query
-    ? inFilter.filter(
-        (c) => c.name.toLowerCase().includes(query) || c.phone.includes(query.replace(/\D/g, "")),
-      )
-    : inFilter;
 
   const selectedCustomer = visible.find((c) => c.phone === selectedPhone) ?? null;
 
@@ -119,11 +131,15 @@ export default function AdminCustomersPage() {
       <div>
         <h1 className="font-serif text-2xl font-semibold text-foreground">Customers</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Derived from order history — {customers.length} customers so far.
+          Derived from order history — {totalCount} customers so far.
         </p>
       </div>
 
-      {customers.length === 0 ? (
+      {loadingCustomers || loadingTotal ? (
+        <LoadingBlock />
+      ) : customersErrored || totalErrored ? (
+        <QueryError label="customers" onRetry={refetchCustomers} />
+      ) : totalCount === 0 ? (
         <p className="mt-10 rounded-xl border border-dashed border-border-subtle py-20 text-center text-sm text-muted-foreground">
           No customers yet — they&apos;ll appear here as soon as a customer checks out.
         </p>
@@ -139,7 +155,7 @@ export default function AdminCustomersPage() {
             >
               All Customers
               <span className={filter === ALL ? "text-white/80" : "text-muted-foreground"}>
-                {customers.length}
+                {totalCount}
               </span>
             </button>
             <button
@@ -163,7 +179,7 @@ export default function AdminCustomersPage() {
             >
               Retail
               <span className={filter === RETAIL ? "text-white/80" : "text-muted-foreground"}>
-                {customers.length - wholesaleCount}
+                {retailCount}
               </span>
             </button>
           </aside>
@@ -173,7 +189,7 @@ export default function AdminCustomersPage() {
               <h2 className="font-serif text-lg font-semibold text-foreground">
                 {filter === ALL ? "All Customers" : filter === WHOLESALE ? "Wholesale" : "Retail"}
                 <span className="ml-2 text-sm font-normal text-muted-foreground">
-                  {visible.length}
+                  {listTotal}
                 </span>
               </h2>
               <input
@@ -182,8 +198,9 @@ export default function AdminCustomersPage() {
                   setSearch(e.target.value);
                   setSelectedPhone(null);
                 }}
+                aria-label="Search customers"
                 placeholder="Search by name or phone..."
-                className="w-full max-w-xs rounded-lg border border-border-subtle bg-background px-3.5 py-2 text-sm outline-none focus:border-primary"
+                className="w-full max-w-xs rounded-lg border border-input-border bg-background px-3.5 py-2 text-sm outline-none focus:border-primary"
               />
             </div>
 
@@ -193,10 +210,16 @@ export default function AdminCustomersPage() {
                 selectedPhone={selectedPhone}
                 onSelect={setSelectedPhone}
               />
+              <Pagination
+                page={page}
+                pageSize={ADMIN_CUSTOMERS_PAGE_SIZE}
+                total={listTotal}
+                onPageChange={setPage}
+              />
             </div>
           </div>
 
-          <CustomerPreview customer={selectedCustomer} onUpdate={refresh} />
+          <CustomerPreview customer={selectedCustomer} />
         </div>
       )}
     </div>

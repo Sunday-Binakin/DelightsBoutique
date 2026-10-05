@@ -1,19 +1,21 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
+import { useMarkUnsaved } from "@/lib/unsaved-changes";
 import {
   STAFF_PERMISSIONS,
-  createStaff,
-  getStaffByEmail,
+  STAFF_PERMISSION_LABELS,
   type StaffMember,
   type StaffPermission,
 } from "@/lib/staff";
-import { logAction } from "@/lib/audit-log";
+import { useCreateStaff } from "@/lib/use-admin-staff";
+import { ApiError } from "@/lib/api/client";
+import { toStaffMember } from "@/lib/api/staff";
 import { Breadcrumb } from "@/components/admin/Breadcrumb";
 import { Button, LinkButton } from "@/components/ui/Button";
 
 const inputClasses =
-  "w-full rounded-lg border border-border-subtle bg-background px-3.5 py-2.5 text-sm outline-none focus:border-primary";
+  "w-full rounded-lg border border-input-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-primary disabled:opacity-50";
 const labelClasses = "flex flex-col gap-1.5 text-sm font-medium text-foreground";
 
 export default function AdminNewStaffPage() {
@@ -24,23 +26,37 @@ export default function AdminNewStaffPage() {
   const [error, setError] = useState("");
   const [created, setCreated] = useState<{ member: StaffMember; password: string } | null>(null);
 
+  useMarkUnsaved(!created && Boolean(name || email || phone || permissions.length));
+  const createStaff = useCreateStaff();
+  const idempotencyKey = useRef(crypto.randomUUID());
+
   function togglePermission(permission: StaffPermission) {
     setPermissions((prev) =>
       prev.includes(permission) ? prev.filter((p) => p !== permission) : [...prev, permission],
     );
   }
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setError("");
 
-    if (getStaffByEmail(email)) {
-      setError("A staff member with this email already exists.");
-      return;
+    try {
+      const result = await createStaff.mutateAsync({
+        body: { name, email, phone: phone || null, permissions },
+        idempotencyKey: idempotencyKey.current,
+      });
+      setCreated({ member: toStaffMember(result.member), password: result.password });
+    } catch (err) {
+      if (err instanceof ApiError && err.code === "CONFLICT") {
+        setError("A staff member with this email already exists.");
+      } else if (err instanceof ApiError && err.code === "VALIDATION_ERROR" && err.fields) {
+        setError(Object.values(err.fields)[0] ?? err.message);
+      } else if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError("Something went wrong. Please try again.");
+      }
     }
-
-    const result = createStaff({ name, email, phone: phone || undefined, permissions });
-    logAction(`Added staff member "${name}"`);
-    setCreated(result);
   }
 
   if (created) {
@@ -69,9 +85,7 @@ export default function AdminNewStaffPage() {
             </div>
           </dl>
           <p className="mt-3 text-xs text-muted-foreground">
-            Share this password with them directly — it won&apos;t be shown again. Passwords
-            aren&apos;t verified at sign-in yet (that comes with real backend auth), but their
-            permissions are enforced as soon as they sign in with this email.
+            Copy this now and share it with them directly — it won&apos;t be shown again.
           </p>
         </div>
         <LinkButton href="/admin/staff" className="mt-6">
@@ -98,12 +112,18 @@ export default function AdminNewStaffPage() {
 
       <form onSubmit={handleSubmit} className="mt-6 flex max-w-md flex-col gap-5">
         {error && (
-          <p className="rounded-lg bg-red-50 px-3.5 py-2.5 text-sm text-red-700">{error}</p>
+          <p role="alert" className="rounded-lg bg-red-50 px-3.5 py-2.5 text-sm text-red-700">{error}</p>
         )}
 
         <label className={labelClasses}>
           Full Name
-          <input required value={name} onChange={(e) => setName(e.target.value)} className={inputClasses} />
+          <input
+            required
+            disabled={createStaff.isPending}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className={inputClasses}
+          />
         </label>
 
         <label className={labelClasses}>
@@ -111,6 +131,7 @@ export default function AdminNewStaffPage() {
           <input
             required
             type="email"
+            disabled={createStaff.isPending}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className={inputClasses}
@@ -120,7 +141,12 @@ export default function AdminNewStaffPage() {
 
         <label className={labelClasses}>
           Phone (optional)
-          <input value={phone} onChange={(e) => setPhone(e.target.value)} className={inputClasses} />
+          <input
+            disabled={createStaff.isPending}
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            className={inputClasses}
+          />
         </label>
 
         <div>
@@ -131,10 +157,11 @@ export default function AdminNewStaffPage() {
                 key={permission}
                 className="flex items-center justify-between rounded-lg border border-border-subtle px-3 py-2 text-sm"
               >
-                {permission}
+                {STAFF_PERMISSION_LABELS[permission]}
                 <input
                   type="checkbox"
                   checked={permissions.includes(permission)}
+                  disabled={createStaff.isPending}
                   onChange={() => togglePermission(permission)}
                   className="h-4 w-4 accent-primary"
                 />
@@ -143,7 +170,9 @@ export default function AdminNewStaffPage() {
           </div>
         </div>
 
-        <Button type="submit">Add Staff</Button>
+        <Button type="submit" disabled={createStaff.isPending}>
+          {createStaff.isPending ? "Adding…" : "Add Staff"}
+        </Button>
       </form>
     </div>
   );

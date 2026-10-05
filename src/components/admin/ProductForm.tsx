@@ -1,43 +1,75 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { useIsDirty, useMarkUnsaved } from "@/lib/unsaved-changes";
 import { useRouter } from "next/navigation";
 import type { Product, StockStatus } from "@/lib/types";
-import { getAllCategories } from "@/lib/category-store";
-import { saveProduct, getAllProducts } from "@/lib/product-store";
+import { useCategories } from "@/lib/use-categories";
+import { useSaveProduct } from "@/lib/use-admin-catalog";
+import { ApiError } from "@/lib/api/client";
 import { slugify } from "@/lib/format";
-import { logAction } from "@/lib/audit-log";
+import { useToast } from "@/components/ui/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { MultiImageUpload } from "@/components/admin/MultiImageUpload";
 import { ProductPreview } from "@/components/admin/ProductPreview";
 
-const STOCK_OPTIONS: StockStatus[] = ["In Stock", "Low Stock", "Out of Stock"];
-const BADGE_OPTIONS = ["None", "New", "Best Seller"] as const;
+const STOCK_OPTIONS: { value: StockStatus; label: string }[] = [
+  { value: "inStock", label: "In Stock" },
+  { value: "lowStock", label: "Low Stock" },
+  { value: "outOfStock", label: "Out of Stock" },
+];
+const BADGE_OPTIONS = [
+  { value: "None", label: "None" },
+  { value: "new", label: "New" },
+  { value: "bestSeller", label: "Best Seller" },
+] as const;
 
 const inputClasses =
-  "w-full rounded-lg border border-border-subtle bg-background px-3.5 py-2.5 text-sm outline-none focus:border-primary disabled:opacity-50";
+  "w-full rounded-lg border border-input-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-primary disabled:opacity-50";
 const labelClasses = "flex flex-col gap-1.5 text-sm font-medium text-foreground";
 
 export function ProductForm({ initialProduct }: { initialProduct?: Product }) {
   const router = useRouter();
   const isEditing = Boolean(initialProduct);
-  const categories = getAllCategories();
+  const categories = useCategories();
+  const saveProduct = useSaveProduct();
+  const toast = useToast();
 
   const [name, setName] = useState(initialProduct?.name ?? "");
   const [slug, setSlug] = useState(initialProduct?.slug ?? "");
   const [slugEdited, setSlugEdited] = useState(isEditing);
-  const [categorySlug, setCategorySlug] = useState(initialProduct?.categorySlug ?? categories[0].slug);
+  const [categorySlug, setCategorySlug] = useState(
+    initialProduct?.categorySlug ?? categories[0]?.slug ?? "",
+  );
   const [description, setDescription] = useState(initialProduct?.description ?? "");
   const [retailPrice, setRetailPrice] = useState(initialProduct?.retailPrice.toString() ?? "");
   const [compareAtPrice, setCompareAtPrice] = useState(initialProduct?.compareAtPrice?.toString() ?? "");
   const [wholesalePrice, setWholesalePrice] = useState(initialProduct?.wholesalePrice?.toString() ?? "");
   const [wholesaleMoq, setWholesaleMoq] = useState(initialProduct?.wholesaleMoq?.toString() ?? "");
-  const [stockStatus, setStockStatus] = useState<StockStatus>(initialProduct?.stockStatus ?? "In Stock");
+  const [stockStatus, setStockStatus] = useState<StockStatus>(initialProduct?.stockStatus ?? "inStock");
   const [badge, setBadge] = useState<string>(initialProduct?.badge ?? "None");
   const [sizes, setSizes] = useState(initialProduct?.sizes?.join(", ") ?? "");
   const [colors, setColors] = useState(initialProduct?.colors?.join(", ") ?? "");
   const [imageUrls, setImageUrls] = useState<string[]>(initialProduct?.imageUrls ?? []);
   const [error, setError] = useState("");
+
+  useMarkUnsaved(
+    useIsDirty({
+      name,
+      slug,
+      categorySlug,
+      description,
+      retailPrice,
+      compareAtPrice,
+      wholesalePrice,
+      wholesaleMoq,
+      stockStatus,
+      badge,
+      sizes,
+      colors,
+      imageUrls,
+    }),
+  );
 
   function handleNameChange(value: string) {
     setName(value);
@@ -51,8 +83,8 @@ export function ProductForm({ initialProduct }: { initialProduct?: Product }) {
     return {
       slug: finalSlug,
       name: name || "Untitled Product",
-      category: category.name,
-      categorySlug: category.slug,
+      category: category?.name ?? "",
+      categorySlug: category?.slug ?? categorySlug,
       description,
       retailPrice: Number(retailPrice) || 0,
       compareAtPrice: compareAtPrice ? Number(compareAtPrice) : undefined,
@@ -60,8 +92,8 @@ export function ProductForm({ initialProduct }: { initialProduct?: Product }) {
       wholesaleMoq: wholesalePrice && wholesaleMoq ? Number(wholesaleMoq) : undefined,
       rating: initialProduct?.rating ?? 5,
       reviewCount: initialProduct?.reviewCount ?? 0,
-      tone: category.tone,
-      badge: badge === "None" ? undefined : (badge as "New" | "Best Seller"),
+      tone: category?.tone ?? "rose",
+      badge: badge === "None" ? undefined : (badge as "new" | "bestSeller"),
       stockStatus,
       sizes: sizes.trim() ? sizes.split(",").map((s) => s.trim()).filter(Boolean) : undefined,
       colors: colors.trim() ? colors.split(",").map((c) => c.trim()).filter(Boolean) : undefined,
@@ -69,36 +101,45 @@ export function ProductForm({ initialProduct }: { initialProduct?: Product }) {
     };
   }
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setError("");
 
     const finalSlug = slugify(slug);
     if (!finalSlug) {
       setError("Slug is required.");
       return;
     }
-    const collision = getAllProducts().find((p) => p.slug === finalSlug);
-    if (collision && collision.slug !== initialProduct?.slug) {
-      setError("Another product already uses this slug — choose a different one.");
-      return;
-    }
 
-    saveProduct(buildProduct(finalSlug));
-    logAction(`${isEditing ? "Updated" : "Added"} product "${name}"`);
-    router.push("/admin/products");
+    try {
+      await saveProduct.mutateAsync({ product: buildProduct(finalSlug), isEditing });
+      toast.success(isEditing ? "Product updated." : "Product added.");
+      router.push("/admin/products");
+    } catch (err) {
+      if (err instanceof ApiError && err.code === "VALIDATION_ERROR" && err.fields) {
+        setError(Object.values(err.fields)[0] ?? err.message);
+      } else if (err instanceof ApiError && err.code === "CONFLICT") {
+        setError("Another product already uses this slug — choose a different one.");
+      } else if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError("Something went wrong saving this product. Please try again.");
+      }
+    }
   }
 
   return (
     <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
       <form onSubmit={handleSubmit} className="flex max-w-2xl flex-col gap-5">
         {error && (
-          <p className="rounded-lg bg-red-50 px-3.5 py-2.5 text-sm text-red-700">{error}</p>
+          <p role="alert" className="rounded-lg bg-red-50 px-3.5 py-2.5 text-sm text-red-700">{error}</p>
         )}
 
         <label className={labelClasses}>
           Product Name
           <input
             required
+            disabled={saveProduct.isPending}
             value={name}
             onChange={(e) => handleNameChange(e.target.value)}
             className={inputClasses}
@@ -109,6 +150,7 @@ export function ProductForm({ initialProduct }: { initialProduct?: Product }) {
           URL Slug
           <input
             required
+            disabled={saveProduct.isPending}
             value={slug}
             onChange={(e) => {
               setSlug(e.target.value);
@@ -124,6 +166,7 @@ export function ProductForm({ initialProduct }: { initialProduct?: Product }) {
           Category
           <select
             value={categorySlug}
+            disabled={saveProduct.isPending}
             onChange={(e) => setCategorySlug(e.target.value)}
             className={inputClasses}
           >
@@ -140,6 +183,7 @@ export function ProductForm({ initialProduct }: { initialProduct?: Product }) {
           <textarea
             required
             rows={3}
+            disabled={saveProduct.isPending}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             className={inputClasses}
@@ -154,6 +198,7 @@ export function ProductForm({ initialProduct }: { initialProduct?: Product }) {
               type="number"
               min="0"
               step="0.01"
+              disabled={saveProduct.isPending}
               value={retailPrice}
               onChange={(e) => setRetailPrice(e.target.value)}
               className={inputClasses}
@@ -165,6 +210,7 @@ export function ProductForm({ initialProduct }: { initialProduct?: Product }) {
               type="number"
               min="0"
               step="0.01"
+              disabled={saveProduct.isPending}
               value={compareAtPrice}
               onChange={(e) => setCompareAtPrice(e.target.value)}
               className={inputClasses}
@@ -179,6 +225,7 @@ export function ProductForm({ initialProduct }: { initialProduct?: Product }) {
               type="number"
               min="0"
               step="0.01"
+              disabled={saveProduct.isPending}
               value={wholesalePrice}
               onChange={(e) => setWholesalePrice(e.target.value)}
               className={inputClasses}
@@ -189,10 +236,10 @@ export function ProductForm({ initialProduct }: { initialProduct?: Product }) {
             <input
               type="number"
               min="0"
+              disabled={saveProduct.isPending || !wholesalePrice}
               value={wholesaleMoq}
               onChange={(e) => setWholesaleMoq(e.target.value)}
               className={inputClasses}
-              disabled={!wholesalePrice}
             />
           </label>
         </div>
@@ -202,22 +249,28 @@ export function ProductForm({ initialProduct }: { initialProduct?: Product }) {
             Stock Status
             <select
               value={stockStatus}
+              disabled={saveProduct.isPending}
               onChange={(e) => setStockStatus(e.target.value as StockStatus)}
               className={inputClasses}
             >
               {STOCK_OPTIONS.map((s) => (
-                <option key={s} value={s}>
-                  {s}
+                <option key={s.value} value={s.value}>
+                  {s.label}
                 </option>
               ))}
             </select>
           </label>
           <label className={labelClasses}>
             Badge
-            <select value={badge} onChange={(e) => setBadge(e.target.value)} className={inputClasses}>
+            <select
+              value={badge}
+              disabled={saveProduct.isPending}
+              onChange={(e) => setBadge(e.target.value)}
+              className={inputClasses}
+            >
               {BADGE_OPTIONS.map((b) => (
-                <option key={b} value={b}>
-                  {b}
+                <option key={b.value} value={b.value}>
+                  {b.label}
                 </option>
               ))}
             </select>
@@ -227,6 +280,7 @@ export function ProductForm({ initialProduct }: { initialProduct?: Product }) {
         <label className={labelClasses}>
           Sizes (comma-separated, optional)
           <input
+            disabled={saveProduct.isPending}
             value={sizes}
             onChange={(e) => setSizes(e.target.value)}
             className={inputClasses}
@@ -237,6 +291,7 @@ export function ProductForm({ initialProduct }: { initialProduct?: Product }) {
         <label className={labelClasses}>
           Colors (comma-separated, optional)
           <input
+            disabled={saveProduct.isPending}
             value={colors}
             onChange={(e) => setColors(e.target.value)}
             className={inputClasses}
@@ -245,7 +300,9 @@ export function ProductForm({ initialProduct }: { initialProduct?: Product }) {
         </label>
 
         <div className="flex gap-3">
-          <Button type="submit">{isEditing ? "Save Changes" : "Add Product"}</Button>
+          <Button type="submit" disabled={saveProduct.isPending}>
+            {saveProduct.isPending ? "Saving…" : isEditing ? "Save Changes" : "Add Product"}
+          </Button>
         </div>
       </form>
 

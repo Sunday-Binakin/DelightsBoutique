@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { readImageFile } from "@/lib/image-upload";
+import { resolveAssetUrl } from "@/lib/asset-url";
+import { uploadErrorMessage, uploadImage } from "@/lib/image-upload";
 
 interface MultiImageUploadProps {
   value: string[];
@@ -18,6 +19,7 @@ export function MultiImageUpload({
   max = 6,
 }: MultiImageUploadProps) {
   const [error, setError] = useState("");
+  const [uploading, setUploading] = useState(false);
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -29,18 +31,19 @@ export function MultiImageUpload({
 
     setError("");
     const chosen = Array.from(files).slice(0, room);
+    if (chosen.some((file) => !file.type.startsWith("image/"))) {
+      setError("Please choose image files only.");
+      return;
+    }
+
+    setUploading(true);
     try {
-      const dataUrls = await Promise.all(
-        chosen.map((file) => {
-          if (!file.type.startsWith("image/")) {
-            throw new Error("Please choose image files only.");
-          }
-          return readImageFile(file);
-        }),
-      );
-      onChange([...value, ...dataUrls]);
-    } catch {
-      setError("Couldn't read one of those images — try different files.");
+      const urls = await Promise.all(chosen.map(uploadImage));
+      onChange([...value, ...urls]);
+    } catch (err) {
+      setError(uploadErrorMessage(err));
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -68,8 +71,8 @@ export function MultiImageUpload({
               title={index === 0 ? "Cover photo" : "Make cover photo"}
               className="block h-full w-full overflow-hidden rounded-lg border border-border-subtle bg-muted"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element -- data URL preview, not a remote asset */}
-              <img src={url} alt="" className="h-full w-full object-cover" />
+              {/* eslint-disable-next-line @next/next/no-img-element -- served from the API host, not optimised by next/image */}
+              <img src={resolveAssetUrl(url)} alt={`Product photo ${index + 1}`} className="h-full w-full object-cover" />
             </button>
             {index === 0 && (
               <span className="absolute bottom-1 left-1 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-white">
@@ -89,11 +92,12 @@ export function MultiImageUpload({
 
         {value.length < max && (
           <label className="flex h-24 w-24 shrink-0 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border-subtle text-center text-xs text-muted-foreground transition-colors hover:border-primary hover:text-primary">
-            + Add Photo
+            {uploading ? "Uploading…" : "+ Add Photo"}
             <input
               type="file"
               accept="image/*"
               multiple
+              disabled={uploading}
               className="hidden"
               onChange={(e) => handleFiles(e.target.files)}
             />

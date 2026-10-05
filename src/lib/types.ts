@@ -1,6 +1,11 @@
 export type PlaceholderTone = "rose" | "cream" | "charcoal" | "gold";
 
-export type StockStatus = "In Stock" | "Low Stock" | "Out of Stock";
+export type StockStatus = "inStock" | "lowStock" | "outOfStock";
+
+export const BADGE_LABELS: Record<"new" | "bestSeller", string> = {
+  new: "New",
+  bestSeller: "Best Seller",
+};
 
 export interface Category {
   slug: string;
@@ -25,7 +30,7 @@ export interface Product {
   rating: number;
   reviewCount: number;
   tone: PlaceholderTone;
-  badge?: "New" | "Best Seller";
+  badge?: "new" | "bestSeller";
   stockStatus: StockStatus;
   sizes?: string[];
   colors?: string[];

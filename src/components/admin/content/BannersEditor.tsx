@@ -1,24 +1,23 @@
 "use client";
 
 import { useState } from "react";
-import { getAllCategories } from "@/lib/category-store";
-import {
-  getBanners,
-  saveBanner,
-  BANNER_LABELS,
-  TEXT_COLOR_OPTIONS,
-  type BannerSet,
-} from "@/lib/banners";
-import { logAction } from "@/lib/audit-log";
+import { useMarkUnsaved } from "@/lib/unsaved-changes";
+import { useCategories } from "@/lib/use-categories";
+import { useBannersQuery } from "@/lib/use-banners";
+import { useUpdateBanner } from "@/lib/use-admin-content";
+import { BANNER_LABELS, TEXT_COLOR_OPTIONS, type BannerSet } from "@/lib/banners";
 import type { PlaceholderTone, PromoBannerContent } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { ImageUpload } from "@/components/admin/ImageUpload";
 import { PromoBanner } from "@/components/home/PromoBanner";
+import { LoadingBlock } from "@/components/ui/Spinner";
+import { QueryError } from "@/components/ui/QueryError";
+import { useToast } from "@/components/ui/ToastProvider";
 
 const TONE_OPTIONS: PlaceholderTone[] = ["rose", "cream", "charcoal", "gold"];
 
 const inputClasses =
-  "w-full rounded-lg border border-border-subtle bg-background px-3.5 py-2.5 text-sm outline-none focus:border-primary";
+  "w-full rounded-lg border border-input-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-primary";
 const labelClasses = "flex flex-col gap-1.5 text-sm font-medium text-foreground";
 
 function BannerCard({
@@ -30,20 +29,30 @@ function BannerCard({
   content: PromoBannerContent;
   onSaved: () => void;
 }) {
-  const categories = getAllCategories();
+  const categories = useCategories();
   const [draft, setDraft] = useState<PromoBannerContent>(content);
   const [saved, setSaved] = useState(true);
+  useMarkUnsaved(!saved);
+  const updateBanner = useUpdateBanner();
+  const toast = useToast();
 
   function update<K extends keyof PromoBannerContent>(key: K, value: PromoBannerContent[K]) {
     setDraft((prev) => ({ ...prev, [key]: value }));
     setSaved(false);
   }
 
-  function handleSave() {
-    saveBanner(bannerKey, draft);
-    logAction(`Updated "${BANNER_LABELS[bannerKey]}" banner`);
-    setSaved(true);
-    onSaved();
+  async function handleSave() {
+    try {
+      await updateBanner.mutateAsync({
+        key: bannerKey,
+        banner: { ...draft, imageUrl: draft.imageUrl ?? null, textColor: draft.textColor ?? null },
+      });
+      setSaved(true);
+      onSaved();
+      toast.success(`"${BANNER_LABELS[bannerKey]}" banner saved.`);
+    } catch {
+      toast.error("Couldn't save this banner. Try again.");
+    }
   }
 
   return (
@@ -153,11 +162,11 @@ function BannerCard({
         <Button
           type="button"
           variant="outline"
-          disabled={saved}
+          disabled={saved || updateBanner.isPending}
           onClick={handleSave}
           className="self-start"
         >
-          {saved ? "Saved" : "Save Banner"}
+          {updateBanner.isPending ? "Saving…" : saved ? "Saved" : "Save Banner"}
         </Button>
       </div>
     </div>
@@ -165,16 +174,14 @@ function BannerCard({
 }
 
 export function BannersEditor() {
-  const [banners, setBanners] = useState<BannerSet>(() => getBanners());
-
-  function refresh() {
-    setBanners(getBanners());
-  }
+  const { banners, isLoading, isError, refetch } = useBannersQuery();
+  if (isLoading) return <LoadingBlock />;
+  if (isError) return <QueryError label="banners" onRetry={refetch} />;
 
   return (
     <div className="mt-4 grid gap-5 lg:grid-cols-2">
       {(Object.keys(banners) as Array<keyof BannerSet>).map((key) => (
-        <BannerCard key={key} bannerKey={key} content={banners[key]} onSaved={refresh} />
+        <BannerCard key={key} bannerKey={key} content={banners[key]} onSaved={() => {}} />
       ))}
     </div>
   );

@@ -62,22 +62,3 @@ export const DEFAULT_BANNERS: BannerSet = {
   },
 };
 
-const STORAGE_KEY = "delight-boutique-banners";
-
-export function getBanners(): BannerSet {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? { ...DEFAULT_BANNERS, ...JSON.parse(raw) } : DEFAULT_BANNERS;
-  } catch {
-    return DEFAULT_BANNERS;
-  }
-}
-
-export function saveBanner(key: keyof BannerSet, content: PromoBannerContent) {
-  const next = { ...getBanners(), [key]: content };
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  } catch {
-    // Storage may be full or blocked — the change still applies for this session.
-  }
-}

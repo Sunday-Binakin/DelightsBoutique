@@ -1,0 +1,30 @@
+"use client";
+
+import { useState, type ReactNode } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ToastProvider } from "@/components/ui/ToastProvider";
+import { shouldRetryQuery } from "@/lib/api/client";
+import { OfflineBanner } from "@/components/ui/OfflineBanner";
+
+export function AppProviders({ children }: { children: ReactNode }) {
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            staleTime: 30_000,
+            retry: shouldRetryQuery,
+          },
+        },
+      }),
+  );
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ToastProvider>
+        <OfflineBanner />
+        {children}
+      </ToastProvider>
+    </QueryClientProvider>
+  );
+}

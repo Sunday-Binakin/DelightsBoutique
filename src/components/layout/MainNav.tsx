@@ -37,7 +37,7 @@ export function MainNav() {
           More
           <ChevronDownIcon className="h-3.5 w-3.5 transition-transform group-open:rotate-180" />
         </summary>
-        <div className="absolute left-0 top-full z-20 mt-2 w-44 rounded-lg border border-border-subtle bg-background py-2 shadow-lg">
+        <div className="absolute left-0 top-full z-20 mt-2 w-44 rounded-lg border border-input-border bg-background py-2 shadow-lg">
           {overflowCategories.map((category) => (
             <Link
               key={category.slug}

@@ -1,16 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { readImageFile } from "@/lib/image-upload";
+import { resolveAssetUrl } from "@/lib/asset-url";
+import { uploadErrorMessage, uploadImage } from "@/lib/image-upload";
 
 interface ImageUploadProps {
   value?: string;
-  onChange: (dataUrl: string | undefined) => void;
+  onChange: (url: string | undefined) => void;
   label?: string;
 }
 
 export function ImageUpload({ value, onChange, label = "Photo" }: ImageUploadProps) {
   const [error, setError] = useState("");
+  const [uploading, setUploading] = useState(false);
 
   async function handleFile(file: File | undefined) {
     if (!file) return;
@@ -19,10 +21,13 @@ export function ImageUpload({ value, onChange, label = "Photo" }: ImageUploadPro
       return;
     }
     setError("");
+    setUploading(true);
     try {
-      onChange(await readImageFile(file));
-    } catch {
-      setError("Couldn't read that image — try a different file.");
+      onChange(await uploadImage(file));
+    } catch (err) {
+      setError(uploadErrorMessage(err));
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -32,18 +37,19 @@ export function ImageUpload({ value, onChange, label = "Photo" }: ImageUploadPro
       <div className="flex items-center gap-4">
         <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border-subtle bg-muted">
           {value ? (
-            // eslint-disable-next-line @next/next/no-img-element -- data URL preview, not a remote asset
-            <img src={value} alt="Product preview" className="h-full w-full object-cover" />
+            // eslint-disable-next-line @next/next/no-img-element -- served from the API host, not optimised by next/image
+            <img src={resolveAssetUrl(value)} alt={`${label} preview`} className="h-full w-full object-cover" />
           ) : (
             <span className="px-2 text-center text-xs text-muted-foreground">No photo yet</span>
           )}
         </div>
         <div className="flex flex-col gap-2">
           <label className="inline-flex cursor-pointer items-center justify-center rounded-full border border-border-subtle px-4 py-2 text-sm font-medium text-foreground/80 transition-colors hover:border-primary hover:text-primary">
-            {value ? "Replace Photo" : "Upload Photo"}
+            {uploading ? "Uploading…" : value ? "Replace Photo" : "Upload Photo"}
             <input
               type="file"
               accept="image/*"
+              disabled={uploading}
               className="hidden"
               onChange={(e) => handleFile(e.target.files?.[0])}
             />

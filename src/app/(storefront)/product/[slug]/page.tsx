@@ -1,21 +1,17 @@
 import type { Metadata } from "next";
-import { featuredProducts } from "@/lib/data/products";
+import { getProductBySlug } from "@/lib/api/products";
 import { SITE } from "@/lib/constants";
+import { SITE_URL, productJsonLd } from "@/lib/seo";
+import { JsonLd } from "@/components/seo/JsonLd";
 import { ProductPageClient } from "./ProductPageClient";
 
 interface ProductPageProps {
   params: Promise<{ slug: string }>;
 }
 
-// Real per-product edits (name/description/photos) live in localStorage,
-// which the server can't see — so metadata is generated from the static
-// seed catalog only. A product the admin added/renamed after the seed
-// still renders correctly on the page itself; its share preview just
-// falls back to the generic site description below until a backend
-// makes product data readable server-side.
 export async function generateMetadata({ params }: ProductPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const product = featuredProducts.find((p) => p.slug === slug);
+  const product = await getProductBySlug(slug).catch(() => null);
 
   if (!product) {
     return { title: "Product" };
@@ -26,6 +22,7 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
   return {
     title: product.name,
     description,
+    alternates: { canonical: `${SITE_URL}/product/${product.slug}` },
     // openGraph/twitter don't merge with the root layout's — every field
     // we want (image, site name, card type) has to be repeated here.
     openGraph: {
@@ -46,5 +43,11 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
 
 export default async function ProductPage({ params }: ProductPageProps) {
   const { slug } = await params;
-  return <ProductPageClient slug={slug} />;
+  const product = await getProductBySlug(slug).catch(() => null);
+  return (
+    <>
+      {product && <JsonLd data={productJsonLd(product)} />}
+      <ProductPageClient slug={slug} />
+    </>
+  );
 }

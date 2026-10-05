@@ -3,28 +3,30 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useNotifications } from "@/lib/use-notifications";
-import { markAsRead, markAllAsRead } from "@/lib/notifications";
+import {
+  useNotificationsQuery,
+  useUnreadCount,
+  useMarkNotificationRead,
+  useMarkAllNotificationsRead,
+} from "@/lib/use-admin-notifications";
 import { formatPrice, timeAgo } from "@/lib/format";
 import { BellIcon } from "@/components/ui/icons";
+import { useToast } from "@/components/ui/ToastProvider";
 
 export function NotificationBell() {
-  const [notifications, refresh] = useNotifications();
+  const { notifications } = useNotificationsQuery();
+  const unread = useUnreadCount();
+  const markRead = useMarkNotificationRead();
+  const markAllRead = useMarkAllNotificationsRead();
+  const toast = useToast();
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const unread = notifications.filter((n) => !n.read).length;
   const recent = notifications.slice(0, 8);
 
   function openOrder(orderId: string, notificationId: string) {
-    markAsRead(notificationId);
-    refresh();
+    markRead.mutate(notificationId);
     setOpen(false);
     router.push(`/admin/orders?highlight=${orderId}`);
-  }
-
-  function handleMarkAllRead() {
-    markAllAsRead();
-    refresh();
   }
 
   return (
@@ -52,13 +54,17 @@ export function NotificationBell() {
             onClick={() => setOpen(false)}
             className="fixed inset-0 z-10 cursor-default"
           />
-          <div className="absolute left-0 top-full z-20 mt-2 w-80 rounded-xl border border-border-subtle bg-background shadow-lg">
+          <div className="absolute left-0 top-full z-20 mt-2 w-80 rounded-xl border border-input-border bg-background shadow-lg">
             <div className="flex items-center justify-between border-b border-border-subtle px-4 py-3">
               <p className="text-sm font-semibold text-foreground">Order Notifications</p>
               {unread > 0 && (
                 <button
                   type="button"
-                  onClick={handleMarkAllRead}
+                  onClick={() =>
+                    markAllRead.mutate(undefined, {
+                      onError: () => toast.error("Couldn't mark notifications as read. Try again."),
+                    })
+                  }
                   className="text-xs font-medium text-primary hover:underline"
                 >
                   Mark all read

@@ -4,8 +4,8 @@ import { DEFAULT_SITE_SETTINGS } from "@/lib/site-settings";
 
 // Site-wide fallback share-preview image — every route inherits this
 // unless it defines its own opengraph-image.tsx. Product/category photos
-// live in localStorage (client-only), so they can't be used here; this is
-// the honest substitute until a backend makes real photos server-readable.
+// are inline data URLs on the API records, so they aren't used here; this is
+// the substitute until the backend serves photos at URLs we can fetch.
 export const alt = SITE.name;
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";

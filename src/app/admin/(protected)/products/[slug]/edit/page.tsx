@@ -1,14 +1,19 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { getProductBySlug } from "@/lib/product-store";
+import { useProduct } from "@/lib/use-products";
 import { ProductForm } from "@/components/admin/ProductForm";
 import { Breadcrumb } from "@/components/admin/Breadcrumb";
 import { LinkButton } from "@/components/ui/Button";
+import { LoadingBlock } from "@/components/ui/Spinner";
+import { QueryError } from "@/components/ui/QueryError";
 
 export default function AdminEditProductPage() {
   const { slug } = useParams<{ slug: string }>();
-  const product = getProductBySlug(slug);
+  const { product, isLoading, isError, notFound, refetch } = useProduct(slug);
+
+  if (isLoading) return <LoadingBlock />;
+  if (isError && !notFound) return <QueryError label="this product" onRetry={refetch} />;
 
   if (!product) {
     return (

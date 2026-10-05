@@ -2,7 +2,9 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { getOrdersByPhone, type Order } from "@/lib/orders";
+import { trackOrders, toOrder } from "@/lib/api/orders";
+import { describeApiError } from "@/lib/api/client";
+import type { Order } from "@/lib/orders";
 import { useStorefrontCopy } from "@/lib/use-storefront-copy";
 import { formatPrice } from "@/lib/format";
 import { OrderStatusBadge } from "@/components/ui/OrderStatusBadge";
@@ -12,10 +14,21 @@ export default function TrackOrderPage() {
   const copy = useStorefrontCopy();
   const [phone, setPhone] = useState("");
   const [results, setResults] = useState<Order[] | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    setResults(getOrdersByPhone(phone));
+    setSubmitting(true);
+    setError("");
+    try {
+      const { data } = await trackOrders(phone);
+      setResults(data.map(toOrder));
+    } catch (err) {
+      setError(describeApiError(err, "Couldn't look up that number. Try again."));
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -29,13 +42,19 @@ export default function TrackOrderPage() {
         <input
           required
           type="tel"
+          disabled={submitting}
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
+          aria-label="Phone number"
           placeholder="024 000 0000"
-          className="w-full rounded-lg border border-border-subtle bg-background px-3.5 py-2.5 text-sm outline-none focus:border-primary"
+          className="w-full rounded-lg border border-input-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-primary disabled:opacity-50"
         />
-        <Button type="submit">Find Orders</Button>
+        <Button type="submit" disabled={submitting}>
+          {submitting ? "Searching…" : "Find Orders"}
+        </Button>
       </form>
+
+      {error && <p className="mt-4 text-center text-sm text-red-700">{error}</p>}
 
       {results !== null && (
         <div className="mt-8">

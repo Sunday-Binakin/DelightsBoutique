@@ -1,12 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getAllOrders, ORDER_STATUSES, type Order } from "@/lib/orders";
+import { ORDER_STATUSES, ORDER_STATUS_LABELS, type Order, type OrderStatus } from "@/lib/orders";
+import { ADMIN_ORDERS_PAGE_SIZE, useAdminOrdersList, useOrderStatusCounts, useTotalOrderCount } from "@/lib/use-admin-orders";
+import { usePagedState } from "@/lib/use-paged-state";
 import { formatPrice } from "@/lib/format";
 import { OrderStatusBadge } from "@/components/ui/OrderStatusBadge";
 import { OrderPreview } from "@/components/admin/OrderPreview";
 import { Breadcrumb } from "@/components/admin/Breadcrumb";
 import { BagIcon } from "@/components/ui/icons";
+import { LoadingBlock } from "@/components/ui/Spinner";
+import { QueryError } from "@/components/ui/QueryError";
+import { Pagination } from "@/components/ui/Pagination";
 
 const ALL = "all";
 
@@ -79,10 +84,26 @@ function OrdersTable({
 }
 
 export default function AdminOrdersPage() {
-  const [orders, setOrders] = useState<Order[]>(() => [...getAllOrders()].reverse());
   const [search, setSearch] = useState("");
-  const [selectedStatus, setSelectedStatus] = useState<string>(ALL);
+  const [selectedStatus, setSelectedStatus] = useState<OrderStatus | typeof ALL>(ALL);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const trimmedSearch = search.trim();
+  const [page, setPage] = usePagedState(`${selectedStatus}|${trimmedSearch}`);
+
+  const {
+    orders: visible,
+    total: listTotal,
+    isLoading: loadingOrders,
+    isError: ordersErrored,
+    refetch: refetchOrders,
+  } = useAdminOrdersList({
+    status: selectedStatus === ALL ? undefined : selectedStatus,
+    search: trimmedSearch || undefined,
+    page,
+    limit: ADMIN_ORDERS_PAGE_SIZE,
+  });
+  const statusCounts = useOrderStatusCounts(ORDER_STATUSES);
+  const { total: totalCount, isLoading: loadingTotal, isError: totalErrored } = useTotalOrderCount();
 
   useEffect(() => {
     // Arriving from a notification click — jump straight to that order.
@@ -93,23 +114,10 @@ export default function AdminOrdersPage() {
     }
   }, []);
 
-  function refresh() {
-    setOrders([...getAllOrders()].reverse());
-  }
-
-  function selectStatus(status: string) {
+  function selectStatus(status: OrderStatus | typeof ALL) {
     setSelectedStatus(status);
     setSelectedId(null);
   }
-
-  const query = search.trim().toLowerCase();
-  const inSelectedStatus =
-    selectedStatus === ALL ? orders : orders.filter((o) => o.status === selectedStatus);
-  const visible = query
-    ? inSelectedStatus.filter(
-        (o) => o.id.toLowerCase().includes(query) || o.customerName.toLowerCase().includes(query),
-      )
-    : inSelectedStatus;
 
   const selectedOrder = visible.find((o) => o.id === selectedId) ?? null;
 
@@ -119,10 +127,14 @@ export default function AdminOrdersPage() {
 
       <div>
         <h1 className="font-serif text-2xl font-semibold text-foreground">Orders</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{orders.length} orders received.</p>
+        <p className="mt-1 text-sm text-muted-foreground">{totalCount} orders received.</p>
       </div>
 
-      {orders.length === 0 ? (
+      {loadingOrders || loadingTotal ? (
+        <LoadingBlock />
+      ) : ordersErrored || totalErrored ? (
+        <QueryError label="orders" onRetry={refetchOrders} />
+      ) : totalCount === 0 ? (
         <div className="mt-10 flex flex-col items-center justify-center rounded-xl border border-dashed border-border-subtle py-20 text-center">
           <BagIcon className="h-8 w-8 text-muted-foreground" />
           <p className="mt-3 text-sm text-muted-foreground">
@@ -141,11 +153,11 @@ export default function AdminOrdersPage() {
             >
               All Orders
               <span className={selectedStatus === ALL ? "text-white/80" : "text-muted-foreground"}>
-                {orders.length}
+                {totalCount}
               </span>
             </button>
             {ORDER_STATUSES.map((status) => {
-              const count = orders.filter((o) => o.status === status).length;
+              const count = statusCounts.get(status) ?? 0;
               const active = selectedStatus === status;
               return (
                 <button
@@ -156,7 +168,7 @@ export default function AdminOrdersPage() {
                     active ? "bg-primary text-white" : "text-foreground/80 hover:bg-muted"
                   }`}
                 >
-                  <span>{status}</span>
+                  <span>{ORDER_STATUS_LABELS[status]}</span>
                   <span className={active ? "text-white/80" : "text-muted-foreground"}>{count}</span>
                 </button>
               );
@@ -166,9 +178,9 @@ export default function AdminOrdersPage() {
           <div>
             <div className="flex flex-wrap items-baseline justify-between gap-3">
               <h2 className="font-serif text-lg font-semibold text-foreground">
-                {selectedStatus === ALL ? "All Orders" : selectedStatus}
+                {selectedStatus === ALL ? "All Orders" : ORDER_STATUS_LABELS[selectedStatus]}
                 <span className="ml-2 text-sm font-normal text-muted-foreground">
-                  {visible.length}
+                  {listTotal}
                 </span>
               </h2>
               <input
@@ -177,17 +189,24 @@ export default function AdminOrdersPage() {
                   setSearch(e.target.value);
                   setSelectedId(null);
                 }}
+                aria-label="Search orders"
                 placeholder="Search by order # or customer..."
-                className="w-full max-w-xs rounded-lg border border-border-subtle bg-background px-3.5 py-2 text-sm outline-none focus:border-primary"
+                className="w-full max-w-xs rounded-lg border border-input-border bg-background px-3.5 py-2 text-sm outline-none focus:border-primary"
               />
             </div>
 
             <div className="mt-3">
               <OrdersTable orders={visible} selectedId={selectedId} onSelect={setSelectedId} />
+              <Pagination
+                page={page}
+                pageSize={ADMIN_ORDERS_PAGE_SIZE}
+                total={listTotal}
+                onPageChange={setPage}
+              />
             </div>
           </div>
 
-          <OrderPreview key={selectedOrder?.id ?? "empty"} order={selectedOrder} onUpdate={refresh} />
+          <OrderPreview key={selectedOrder?.id ?? "empty"} order={selectedOrder} />
         </div>
       )}
     </div>

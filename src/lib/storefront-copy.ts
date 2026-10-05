@@ -69,22 +69,3 @@ export const DEFAULT_STOREFRONT_COPY: StorefrontCopy = {
   categoryGridTitle: "Our Full Catalog",
 };
 
-const STORAGE_KEY = "delight-boutique-storefront-copy";
-
-export function getStorefrontCopy(): StorefrontCopy {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? { ...DEFAULT_STOREFRONT_COPY, ...JSON.parse(raw) } : DEFAULT_STOREFRONT_COPY;
-  } catch {
-    return DEFAULT_STOREFRONT_COPY;
-  }
-}
-
-export function saveStorefrontCopy(updates: Partial<StorefrontCopy>) {
-  const next = { ...getStorefrontCopy(), ...updates };
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  } catch {
-    // Storage may be full or blocked — the change still applies for this session.
-  }
-}

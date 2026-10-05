@@ -26,7 +26,12 @@ export function CountdownTimer({ endsAt }: { endsAt: number }) {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- resync when endsAt changes (e.g. admin edits it live)
     setRemaining(getRemaining(endsAt));
-    const id = setInterval(() => setRemaining(getRemaining(endsAt)), 1000);
+    if (endsAt <= Date.now()) return;
+    const id = setInterval(() => {
+      const next = getRemaining(endsAt);
+      setRemaining(next);
+      if (endsAt <= Date.now()) clearInterval(id);
+    }, 1000);
     return () => clearInterval(id);
   }, [endsAt]);
 
@@ -35,7 +40,7 @@ export function CountdownTimer({ endsAt }: { endsAt: number }) {
       {UNITS.map(({ key, label }) => (
         <div
           key={key}
-          className="flex min-w-14 flex-col items-center rounded-lg border border-border-subtle bg-background px-3 py-2"
+          className="flex min-w-14 flex-col items-center rounded-lg border border-input-border bg-background px-3 py-2"
         >
           <span className="font-serif text-lg font-semibold text-primary">
             {String(remaining[key]).padStart(2, "0")}

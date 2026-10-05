@@ -3,9 +3,12 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { SITE } from "@/lib/constants";
-import { adminSignOut, canAccess, getAdminSession } from "@/lib/admin-auth";
-import { logAction } from "@/lib/audit-log";
+import { canAccess } from "@/lib/admin-auth";
+import { useLogout } from "@/lib/use-session";
+import { confirmDiscardUnsaved } from "@/lib/unsaved-changes";
+import { useToast } from "@/components/ui/ToastProvider";
 import { NotificationBell } from "@/components/admin/NotificationBell";
+import type { SessionDto } from "@/lib/api/types";
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/admin/dashboard" },
@@ -17,16 +20,19 @@ const NAV_ITEMS = [
   { label: "Reports", href: "/admin/reports" },
 ];
 
-export function AdminSidebar() {
+export function AdminSidebar({ session }: { session: SessionDto }) {
   const pathname = usePathname();
   const router = useRouter();
-  const session = getAdminSession();
-  const visibleItems = NAV_ITEMS.filter((item) => canAccess(item.href));
+  const logout = useLogout();
+  const toast = useToast();
+  const visibleItems = NAV_ITEMS.filter((item) => canAccess(session, item.href));
 
   function handleSignOut() {
-    logAction("Signed out");
-    adminSignOut();
-    router.push("/admin/login");
+    if (!confirmDiscardUnsaved()) return;
+    logout.mutate(undefined, {
+      onSuccess: () => router.push("/admin/login"),
+      onError: () => toast.error("Couldn't sign you out. Check your connection and try again."),
+    });
   }
 
   return (
@@ -35,12 +41,10 @@ export function AdminSidebar() {
         <div>
           <p className="font-serif text-lg font-semibold text-primary">{SITE.name}</p>
           <p className="text-xs text-muted-foreground">Admin Panel</p>
-          {session && (
-            <p className="mt-2 text-xs text-foreground/70">
-              Signed in as <span className="font-medium">{session.name}</span>
-              {session.role === "staff" && " (Staff)"}
-            </p>
-          )}
+          <p className="mt-2 text-xs text-foreground/70">
+            Signed in as <span className="font-medium">{session.name}</span>
+            {session.role === "Staff" && " (Staff)"}
+          </p>
         </div>
         <NotificationBell />
       </div>

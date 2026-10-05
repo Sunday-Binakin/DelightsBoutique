@@ -4,22 +4,25 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Product } from "@/lib/types";
 import { useCart } from "@/lib/cart-context";
+import { useToast } from "@/components/ui/ToastProvider";
 import { QuantityStepper } from "@/components/ui/QuantityStepper";
 import { Button, LinkButton } from "@/components/ui/Button";
 
 export function AddToCartForm({ product }: { product: Product }) {
   const router = useRouter();
   const { addItem } = useCart();
+  const toast = useToast();
   const [size, setSize] = useState(product.sizes?.[0]);
   const [color, setColor] = useState(product.colors?.[0]);
   const [quantity, setQuantity] = useState(1);
   const [justAdded, setJustAdded] = useState(false);
 
-  const outOfStock = product.stockStatus === "Out of Stock";
+  const outOfStock = product.stockStatus === "outOfStock";
 
   function handleAddToCart() {
     addItem({ slug: product.slug, size, color, quantity });
     setJustAdded(true);
+    toast.success(`Added ${product.name} to your cart.`);
   }
 
   return (

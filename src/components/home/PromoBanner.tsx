@@ -20,6 +20,7 @@ export function PromoBanner({ content, size = "small" }: PromoBannerProps) {
       label={content.title}
       tone={content.tone}
       overlay
+      loading={isLarge ? "eager" : "lazy"}
       iconClassName={isLarge ? "h-1/2 w-1/2" : "h-2/5 w-2/5"}
       className={`rounded-2xl ${isLarge ? "min-h-105 p-10" : "min-h-50 p-6"}`}
     >

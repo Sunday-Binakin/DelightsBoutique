@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { categories } from "@/lib/data/categories";
+import { getCategoryBySlug } from "@/lib/api/categories";
 import { SITE } from "@/lib/constants";
 import { CategoryPageClient } from "./CategoryPageClient";
 
@@ -7,12 +7,9 @@ interface CategoryPageProps {
   params: Promise<{ slug: string }>;
 }
 
-// Same caveat as product/[slug]: a category the admin added after the seed
-// still renders correctly, it just falls back to generic metadata here
-// since the server can't see localStorage.
 export async function generateMetadata({ params }: CategoryPageProps): Promise<Metadata> {
   const { slug } = await params;
-  const category = categories.find((c) => c.slug === slug);
+  const category = await getCategoryBySlug(slug).catch(() => null);
 
   if (!category) {
     return { title: "Shop" };

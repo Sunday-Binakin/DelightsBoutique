@@ -2,18 +2,19 @@
 
 import Link from "next/link";
 import { useCart, type CartLine } from "@/lib/cart-context";
-import { getProductBySlug } from "@/lib/product-store";
+import { useProductsBySlug } from "@/lib/use-products";
 import { useStorefrontCopy } from "@/lib/use-storefront-copy";
 import { formatPrice } from "@/lib/format";
+import type { Product } from "@/lib/types";
 import { ProductVisual } from "@/components/ui/ProductVisual";
 import { QuantityStepper } from "@/components/ui/QuantityStepper";
 import { LinkButton } from "@/components/ui/Button";
 import { BagIcon } from "@/components/ui/icons";
+import { LoadingBlock } from "@/components/ui/Spinner";
+import { QueryError } from "@/components/ui/QueryError";
 
-function CartLineRow({ line }: { line: CartLine }) {
+function CartLineRow({ line, product }: { line: CartLine; product: Product }) {
   const { setQuantity, removeLine } = useCart();
-  const product = getProductBySlug(line.slug);
-  if (!product) return null;
 
   return (
     <div className="flex gap-4 border-b border-border-subtle py-5 first:pt-0">
@@ -58,11 +59,15 @@ function CartLineRow({ line }: { line: CartLine }) {
 export default function CartPage() {
   const { lines } = useCart();
   const copy = useStorefrontCopy();
+  const { bySlug, isLoading, isError, refetch } = useProductsBySlug(lines.map((line) => line.slug));
 
   const subtotal = lines.reduce((sum, line) => {
-    const product = getProductBySlug(line.slug);
+    const product = bySlug.get(line.slug);
     return product ? sum + product.retailPrice * line.quantity : sum;
   }, 0);
+
+  if (lines.length > 0 && isLoading) return <LoadingBlock />;
+  if (lines.length > 0 && isError) return <QueryError label="your cart" onRetry={refetch} />;
 
   if (lines.length === 0) {
     return (
@@ -87,9 +92,17 @@ export default function CartPage() {
 
       <div className="mt-6 grid gap-10 lg:grid-cols-[2fr_1fr]">
         <div>
-          {lines.map((line) => (
-            <CartLineRow key={`${line.slug}-${line.size ?? ""}-${line.color ?? ""}`} line={line} />
-          ))}
+          {lines.map((line) => {
+            const product = bySlug.get(line.slug);
+            if (!product) return null;
+            return (
+              <CartLineRow
+                key={`${line.slug}-${line.size ?? ""}-${line.color ?? ""}`}
+                line={line}
+                product={product}
+              />
+            );
+          })}
         </div>
 
         <div className="h-fit rounded-2xl border border-border-subtle p-6">

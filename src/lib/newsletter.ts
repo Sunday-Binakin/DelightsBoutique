@@ -1,37 +1,22 @@
-export interface NewsletterSubscriber {
-  email: string;
-  subscribedAt: string;
+"use client";
+
+import { useQuery } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/api/client";
+import type { Paginated } from "@/lib/api/types";
+
+export function subscribeToNewsletter(email: string): Promise<void> {
+  return apiFetch<void>("/api/newsletter/subscribe", { method: "POST", body: { email } });
 }
 
-const STORAGE_KEY = "delight-boutique-newsletter-subscribers";
-
-function readAll(): NewsletterSubscriber[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeAll(subscribers: NewsletterSubscriber[]) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(subscribers));
-  } catch {
-    // Storage may be full or blocked — the signup still succeeds for this session.
-  }
-}
-
-export function getSubscribers(): NewsletterSubscriber[] {
-  return readAll();
-}
-
-/** Adds an email if it isn't already subscribed. Returns false if it was a duplicate. */
-export function addSubscriber(email: string): boolean {
-  const normalized = email.trim().toLowerCase();
-  const all = readAll();
-  if (all.some((s) => s.email === normalized)) return false;
-
-  writeAll([...all, { email: normalized, subscribedAt: new Date().toISOString() }]);
-  return true;
+/** Admin-only; the count comes from the paginated list's `total`. */
+export function useNewsletterSubscriberCount() {
+  const query = useQuery({
+    queryKey: ["newsletter-subscribers", "count"],
+    queryFn: () =>
+      apiFetch<Paginated<{ email: string; subscribedAt: string }>>(
+        "/api/admin/newsletter/subscribers",
+        { query: { limit: 1 } },
+      ),
+  });
+  return { total: query.data?.total ?? 0, isError: query.isError };
 }

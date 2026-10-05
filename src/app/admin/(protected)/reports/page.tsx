@@ -1,26 +1,41 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { useReports } from "@/lib/use-reports";
+import { useCategories } from "@/lib/use-categories";
 import {
-  DEFAULT_REPORT_FILTERS,
-  filterOrders,
-  getPaymentMethodBreakdown,
-  getReportCategories,
-  getReportOrders,
-  getSalesSummary,
-  getStatusBreakdown,
-  getTopProducts,
-  type ReportFilters,
-} from "@/lib/reports";
-import type { FulfillmentMethod, OrderStatus, PaymentMethod } from "@/lib/orders";
+  FULFILLMENT_LABELS,
+  PAYMENT_METHOD_LABELS,
+  type FulfillmentMethod,
+  type OrderStatus,
+  type PaymentMethod,
+} from "@/lib/orders";
 import { formatPrice } from "@/lib/format";
 import { Breadcrumb } from "@/components/admin/Breadcrumb";
 import { StatCard } from "@/components/admin/StatCard";
 import { OrderStatusBadge } from "@/components/ui/OrderStatusBadge";
+import { LoadingBlock } from "@/components/ui/Spinner";
+import { QueryError } from "@/components/ui/QueryError";
 
 const inputClasses =
-  "w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm outline-none focus:border-primary";
+  "w-full rounded-lg border border-input-border bg-background px-3 py-2 text-sm outline-none focus:border-primary";
 const labelClasses = "flex flex-col gap-1.5 text-xs font-medium text-muted-foreground";
+
+interface ReportFilters {
+  from: string;
+  to: string;
+  fulfillment: FulfillmentMethod | "all";
+  paymentMethod: PaymentMethod | "all";
+  categorySlug: string;
+}
+
+const DEFAULT_FILTERS: ReportFilters = {
+  from: "",
+  to: "",
+  fulfillment: "all",
+  paymentMethod: "all",
+  categorySlug: "all",
+};
 
 function toISODate(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -58,10 +73,10 @@ function BreakdownBar({
   rows,
   labelFor,
 }: {
-  rows: Array<{ key: string; count: number; amount: number }>;
+  rows: Array<{ key: string; count: number; revenue: number }>;
   labelFor: (key: string) => ReactNode;
 }) {
-  const maxAmount = Math.max(...rows.map((r) => r.amount), 1);
+  const maxRevenue = Math.max(...rows.map((r) => r.revenue), 1);
 
   if (rows.length === 0) {
     return <p className="text-sm text-muted-foreground">No orders match these filters.</p>;
@@ -71,16 +86,16 @@ function BreakdownBar({
     <div className="flex flex-col gap-3">
       {rows.map((row) => (
         <div key={row.key}>
-          <div className="flex items-center justify-between text-sm">
+          <div className="flex items-center justify-between gap-3 text-sm">
             <span className="font-medium text-foreground">{labelFor(row.key)}</span>
-            <span className="text-muted-foreground">
-              {row.count} order{row.count === 1 ? "" : "s"} · {formatPrice(row.amount)}
+            <span className="text-right text-muted-foreground">
+              {formatPrice(row.revenue)} · {row.count} order{row.count === 1 ? "" : "s"}
             </span>
           </div>
           <div className="mt-1 h-2 overflow-hidden rounded-full bg-muted">
             <div
               className="h-full rounded-full bg-primary"
-              style={{ width: `${(row.amount / maxAmount) * 100}%` }}
+              style={{ width: `${(row.revenue / maxRevenue) * 100}%` }}
             />
           </div>
         </div>
@@ -90,27 +105,35 @@ function BreakdownBar({
 }
 
 export default function AdminReportsPage() {
-  const [filters, setFilters] = useState<ReportFilters>(DEFAULT_REPORT_FILTERS);
-  const [allOrders] = useState(() => getReportOrders());
-  const [categories] = useState(() => getReportCategories());
+  const [filters, setFilters] = useState<ReportFilters>(DEFAULT_FILTERS);
+  const categories = useCategories();
 
   function update<K extends keyof ReportFilters>(key: K, value: ReportFilters[K]) {
     setFilters((prev) => ({ ...prev, [key]: value }));
   }
 
-  const filtered = useMemo(() => filterOrders(allOrders, filters), [allOrders, filters]);
-  const summary = useMemo(() => getSalesSummary(filtered), [filtered]);
-  const topProducts = useMemo(() => getTopProducts(filtered), [filtered]);
-  const statusBreakdown = useMemo(() => getStatusBreakdown(filtered), [filtered]);
-  const paymentBreakdown = useMemo(() => getPaymentMethodBreakdown(filtered), [filtered]);
+  const { data: reports, isLoading, isError, refetch } = useReports({
+    from: filters.from || undefined,
+    to: filters.to || undefined,
+    fulfillment: filters.fulfillment === "all" ? undefined : filters.fulfillment,
+    paymentMethod: filters.paymentMethod === "all" ? undefined : filters.paymentMethod,
+    categorySlug: filters.categorySlug === "all" ? undefined : filters.categorySlug,
+  });
 
-  const maxDayRevenue = Math.max(...summary.byDay.map((d) => d.revenue), 1);
   const hasFilters =
     filters.from !== "" ||
     filters.to !== "" ||
     filters.fulfillment !== "all" ||
     filters.paymentMethod !== "all" ||
     filters.categorySlug !== "all";
+
+  const pendingCount =
+    reports?.statusBreakdown.find((row) => row.status === "pendingConfirmation")?.count ?? 0;
+  const confirmedOrderCount = reports
+    ? Math.max(reports.summary.totalOrders - reports.summary.cancelledOrders - pendingCount, 0)
+    : 0;
+  const averageConfirmedOrderValue =
+    reports && confirmedOrderCount > 0 ? reports.summary.confirmedRevenue / confirmedOrderCount : 0;
 
   return (
     <div>
@@ -137,7 +160,7 @@ export default function AdminReportsPage() {
           {hasFilters && (
             <button
               type="button"
-              onClick={() => setFilters(DEFAULT_REPORT_FILTERS)}
+              onClick={() => setFilters(DEFAULT_FILTERS)}
               className="rounded-full px-3 py-1 text-xs font-medium text-red-500 hover:underline"
             >
               Reset filters
@@ -172,8 +195,8 @@ export default function AdminReportsPage() {
               className={inputClasses}
             >
               <option value="all">All</option>
-              <option value="Delivery">Delivery</option>
-              <option value="Pickup">Pickup</option>
+              <option value="delivery">{FULFILLMENT_LABELS.delivery}</option>
+              <option value="pickup">{FULFILLMENT_LABELS.pickup}</option>
             </select>
           </label>
           <label className={labelClasses}>
@@ -184,9 +207,9 @@ export default function AdminReportsPage() {
               className={inputClasses}
             >
               <option value="all">All</option>
-              <option value="Bank Transfer">Bank Transfer</option>
-              <option value="Mobile Money">Mobile Money</option>
-              <option value="Cash on Delivery/Pickup">Cash on Delivery/Pickup</option>
+              <option value="bankTransfer">{PAYMENT_METHOD_LABELS.bankTransfer}</option>
+              <option value="mobileMoney">{PAYMENT_METHOD_LABELS.mobileMoney}</option>
+              <option value="cashOnDeliveryOrPickup">{PAYMENT_METHOD_LABELS.cashOnDeliveryOrPickup}</option>
             </select>
           </label>
           <label className={labelClasses}>
@@ -207,102 +230,104 @@ export default function AdminReportsPage() {
         </div>
       </div>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Confirmed Revenue" value={formatPrice(summary.confirmedRevenue)} />
-        <StatCard
-          label="Pending Revenue"
-          value={formatPrice(summary.pendingRevenue)}
-          tone={summary.pendingRevenue > 0 ? "warning" : "default"}
-        />
-        <StatCard label="Orders" value={summary.orderCount} />
-        <StatCard label="Average Order Value" value={formatPrice(summary.averageOrderValue)} />
-      </div>
-      {summary.cancelledCount > 0 && (
-        <p className="mt-2 text-xs text-muted-foreground">
-          Excludes {summary.cancelledCount} cancelled order{summary.cancelledCount === 1 ? "" : "s"}{" "}
-          ({formatPrice(summary.cancelledAmount)}).
-        </p>
-      )}
+      {isLoading ? (
+        <LoadingBlock />
+      ) : isError ? (
+        <QueryError label="reports" onRetry={refetch} />
+      ) : (
+        <>
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <StatCard label="Confirmed Revenue" value={formatPrice(reports?.summary.confirmedRevenue ?? 0)} />
+            <StatCard label="Pending Amount" value={formatPrice(reports?.summary.pendingAmount ?? 0)} />
+            <StatCard label="Avg. Confirmed Order Value" value={formatPrice(averageConfirmedOrderValue)} />
+            <StatCard label="Total Orders" value={reports?.summary.totalOrders ?? 0} />
+            <StatCard
+              label="Cancelled Orders"
+              value={reports?.summary.cancelledOrders ?? 0}
+              tone={(reports?.summary.cancelledOrders ?? 0) > 0 ? "warning" : "default"}
+            />
+            <StatCard label="Cancelled Amount" value={formatPrice(reports?.summary.cancelledAmount ?? 0)} />
+          </div>
 
-      <div className="mt-8">
-        <h2 className="font-serif text-lg font-semibold text-foreground">Revenue by Day</h2>
-        {summary.byDay.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">No orders match these filters.</p>
-        ) : (
-          <div className="mt-3 flex flex-col gap-2 rounded-xl border border-border-subtle p-4">
-            {summary.byDay.map((day) => (
-              <div key={day.date} className="flex items-center gap-3">
-                <span className="w-24 shrink-0 text-xs text-muted-foreground">
-                  {new Date(`${day.date}T00:00:00`).toLocaleDateString(undefined, {
-                    month: "short",
-                    day: "numeric",
-                  })}
-                </span>
-                <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full bg-primary"
-                    style={{ width: `${(day.revenue / maxDayRevenue) * 100}%` }}
+          <div className="mt-8 grid gap-8 lg:grid-cols-2">
+            <div>
+              <h2 className="font-serif text-lg font-semibold text-foreground">Top Products</h2>
+              {!reports || reports.topProducts.length === 0 ? (
+                <p className="mt-3 text-sm text-muted-foreground">No orders match these filters.</p>
+              ) : (
+                <div className="mt-3 overflow-x-auto rounded-xl border border-border-subtle">
+                  <table className="w-full text-left text-sm">
+                    <thead className="border-b border-border-subtle bg-muted text-xs uppercase text-muted-foreground">
+                      <tr>
+                        <th className="px-4 py-3">Product</th>
+                        <th className="px-4 py-3">Category</th>
+                        <th className="px-4 py-3">Qty</th>
+                        <th className="px-4 py-3">Revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {reports.topProducts.map((p) => (
+                        <tr key={p.slug} className="border-b border-border-subtle last:border-0">
+                          <td className="px-4 py-3 font-medium text-foreground">{p.name}</td>
+                          <td className="px-4 py-3 text-muted-foreground">
+                            {p.category ?? "—"}
+                          </td>
+                          <td className="px-4 py-3 text-muted-foreground">{p.unitsSold}</td>
+                          <td className="px-4 py-3">{formatPrice(p.revenue)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-8">
+              <div>
+                <h2 className="font-serif text-lg font-semibold text-foreground">Order Status</h2>
+                <div className="mt-3 rounded-xl border border-border-subtle p-4">
+                  <BreakdownBar
+                    rows={(reports?.statusBreakdown ?? []).map((r) => ({
+                      key: r.status,
+                      count: r.count,
+                      revenue: r.revenue,
+                    }))}
+                    labelFor={(key) => <OrderStatusBadge status={key as OrderStatus} />}
                   />
                 </div>
-                <span className="w-28 shrink-0 text-right text-xs text-muted-foreground">
-                  {formatPrice(day.revenue)} · {day.orders} order{day.orders === 1 ? "" : "s"}
-                </span>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
 
-      <div className="mt-8 grid gap-8 lg:grid-cols-2">
-        <div>
-          <h2 className="font-serif text-lg font-semibold text-foreground">Top Products</h2>
-          {topProducts.length === 0 ? (
-            <p className="mt-3 text-sm text-muted-foreground">No orders match these filters.</p>
-          ) : (
-            <div className="mt-3 overflow-x-auto rounded-xl border border-border-subtle">
-              <table className="w-full text-left text-sm">
-                <thead className="border-b border-border-subtle bg-muted text-xs uppercase text-muted-foreground">
-                  <tr>
-                    <th className="px-4 py-3">Product</th>
-                    <th className="px-4 py-3">Category</th>
-                    <th className="px-4 py-3">Qty</th>
-                    <th className="px-4 py-3">Revenue</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {topProducts.map((p) => (
-                    <tr key={p.slug} className="border-b border-border-subtle last:border-0">
-                      <td className="px-4 py-3 font-medium text-foreground">{p.name}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{p.categoryName}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{p.quantity}</td>
-                      <td className="px-4 py-3">{formatPrice(p.revenue)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div>
+                <h2 className="font-serif text-lg font-semibold text-foreground">Payment Method</h2>
+                <div className="mt-3 rounded-xl border border-border-subtle p-4">
+                  <BreakdownBar
+                    rows={(reports?.paymentBreakdown ?? []).map((r) => ({
+                      key: r.paymentMethod,
+                      count: r.count,
+                      revenue: r.revenue,
+                    }))}
+                    labelFor={(key) => PAYMENT_METHOD_LABELS[key as PaymentMethod]}
+                  />
+                </div>
+              </div>
             </div>
-          )}
-        </div>
+          </div>
 
-        <div className="flex flex-col gap-8">
-          <div>
-            <h2 className="font-serif text-lg font-semibold text-foreground">Order Status</h2>
+          <div className="mt-8">
+            <h2 className="font-serif text-lg font-semibold text-foreground">Revenue by Day</h2>
             <div className="mt-3 rounded-xl border border-border-subtle p-4">
               <BreakdownBar
-                rows={statusBreakdown}
-                labelFor={(key) => <OrderStatusBadge status={key as OrderStatus} />}
+                rows={(reports?.dailySeries ?? []).map((d) => ({
+                  key: d.date,
+                  count: d.orderCount,
+                  revenue: d.revenue,
+                }))}
+                labelFor={(key) => key}
               />
             </div>
           </div>
-
-          <div>
-            <h2 className="font-serif text-lg font-semibold text-foreground">Payment Method</h2>
-            <div className="mt-3 rounded-xl border border-border-subtle p-4">
-              <BreakdownBar rows={paymentBreakdown} labelFor={(key) => key} />
-            </div>
-          </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 }

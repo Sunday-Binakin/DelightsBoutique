@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Playfair_Display, Inter } from "next/font/google";
 import { SITE } from "@/lib/constants";
 import { DEFAULT_SITE_SETTINGS } from "@/lib/site-settings";
+import { AppProviders } from "./providers";
 import "./globals.css";
 
 const heading = Playfair_Display({
@@ -46,7 +47,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${heading.variable} ${body.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <AppProviders>{children}</AppProviders>
+      </body>
     </html>
   );
 }

@@ -1,18 +1,23 @@
 "use client";
 
 import { useState } from "react";
-import type { Product } from "@/lib/types";
-import { getAllCategories } from "@/lib/category-store";
-import { getAllProducts, deleteProduct } from "@/lib/product-store";
+import { BADGE_LABELS, type Product } from "@/lib/types";
+import { useCategories } from "@/lib/use-categories";
+import { PRODUCT_PAGE_SIZE, useProductsList } from "@/lib/use-products";
+import { usePagedState } from "@/lib/use-paged-state";
+import { useDeleteProduct, useCategoryProductCounts, useTotalProductCount } from "@/lib/use-admin-catalog";
 import { formatPrice } from "@/lib/format";
 import { ProductVisual } from "@/components/ui/ProductVisual";
+import { Pagination } from "@/components/ui/Pagination";
 import { StockBadge } from "@/components/ui/StockBadge";
 import Link from "next/link";
 import { LinkButton } from "@/components/ui/Button";
 import { EditIcon, TrashIcon } from "@/components/ui/icons";
 import { ProductPreview } from "@/components/admin/ProductPreview";
 import { Breadcrumb } from "@/components/admin/Breadcrumb";
-import { logAction } from "@/lib/audit-log";
+import { LoadingBlock } from "@/components/ui/Spinner";
+import { QueryError } from "@/components/ui/QueryError";
+import { useToast } from "@/components/ui/ToastProvider";
 
 const ALL = "all";
 
@@ -21,12 +26,21 @@ function ProductTable({
   selectedSlug,
   onSelect,
   onDelete,
+  isLoading,
+  isError,
+  onRetry,
 }: {
   products: Product[];
   selectedSlug: string | null;
   onSelect: (slug: string) => void;
   onDelete: (slug: string, name: string) => void;
+  isLoading: boolean;
+  isError: boolean;
+  onRetry: () => void;
 }) {
+  if (isLoading) return <LoadingBlock />;
+  if (isError) return <QueryError label="products" onRetry={onRetry} />;
+
   if (products.length === 0) {
     return (
       <p className="rounded-xl border border-dashed border-border-subtle px-4 py-6 text-center text-sm text-muted-foreground">
@@ -65,7 +79,9 @@ function ProductTable({
                   />
                   <div>
                     <p className="font-medium text-foreground">{product.name}</p>
-                    {product.badge && <p className="text-xs text-primary">{product.badge}</p>}
+                    {product.badge && (
+                      <p className="text-xs text-primary">{BADGE_LABELS[product.badge]}</p>
+                    )}
                   </div>
                 </div>
               </td>
@@ -110,38 +126,46 @@ function ProductTable({
 }
 
 export default function AdminProductsPage() {
-  const [categories, setCategories] = useState(() => getAllCategories());
-  const [products, setProducts] = useState<Product[]>(() => getAllProducts());
+  const categories = useCategories();
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>(ALL);
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
+  const trimmedSearch = search.trim();
+  const [page, setPage] = usePagedState(`${selectedCategory}|${trimmedSearch}`);
 
-  function refresh() {
-    setCategories(getAllCategories());
-    setProducts(getAllProducts());
-  }
+  const {
+    products: visible,
+    total: listTotal,
+    isLoading: loadingProducts,
+    isError: productsErrored,
+    refetch: refetchProducts,
+  } = useProductsList({
+    category: selectedCategory === ALL ? undefined : selectedCategory,
+    search: trimmedSearch || undefined,
+    page,
+    limit: PRODUCT_PAGE_SIZE,
+  });
+  const categoryCounts = useCategoryProductCounts(categories.map((c) => c.slug));
+  const { total: totalCount } = useTotalProductCount();
+
+  const deleteProduct = useDeleteProduct();
+  const toast = useToast();
 
   function handleDelete(slug: string, name: string) {
     if (!confirm(`Delete "${name}"? This can't be undone.`)) return;
-    deleteProduct(slug);
-    logAction(`Deleted product "${name}"`);
-    if (selectedSlug === slug) setSelectedSlug(null);
-    refresh();
+    deleteProduct.mutate(slug, {
+      onSuccess: () => {
+        if (selectedSlug === slug) setSelectedSlug(null);
+        toast.success(`"${name}" deleted.`);
+      },
+      onError: () => toast.error(`Couldn't delete "${name}". Try again.`),
+    });
   }
 
   function selectCategory(slug: string) {
     setSelectedCategory(slug);
     setSelectedSlug(null);
   }
-
-  const query = search.trim().toLowerCase();
-  const inSelectedCategory =
-    selectedCategory === ALL
-      ? products
-      : products.filter((p) => p.categorySlug === selectedCategory);
-  const visible = query
-    ? inSelectedCategory.filter((p) => p.name.toLowerCase().includes(query))
-    : inSelectedCategory;
 
   const selectedCategoryName =
     selectedCategory === ALL
@@ -158,10 +182,13 @@ export default function AdminProductsPage() {
         <div>
           <h1 className="font-serif text-2xl font-semibold text-foreground">Products</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {products.length} products in the catalog.
+            {totalCount} products in the catalog.
           </p>
         </div>
         <div className="flex gap-3">
+          <LinkButton href="/admin/products/bulk" variant="outline">
+            Bulk Upload
+          </LinkButton>
           <LinkButton href="/admin/categories/new" variant="outline">
             + Add Category
           </LinkButton>
@@ -180,11 +207,11 @@ export default function AdminProductsPage() {
           >
             All Products
             <span className={selectedCategory === ALL ? "text-white/80" : "text-muted-foreground"}>
-              {products.length}
+              {totalCount}
             </span>
           </button>
           {categories.map((category) => {
-            const count = products.filter((p) => p.categorySlug === category.slug).length;
+            const count = categoryCounts.get(category.slug) ?? 0;
             const active = selectedCategory === category.slug;
             return (
               <div
@@ -223,7 +250,7 @@ export default function AdminProductsPage() {
             <h2 className="font-serif text-lg font-semibold text-foreground">
               {selectedCategoryName}
               <span className="ml-2 text-sm font-normal text-muted-foreground">
-                {visible.length}
+                {listTotal}
               </span>
             </h2>
             <input
@@ -232,8 +259,9 @@ export default function AdminProductsPage() {
                 setSearch(e.target.value);
                 setSelectedSlug(null);
               }}
+              aria-label="Search products"
               placeholder="Search products..."
-              className="w-full max-w-xs rounded-lg border border-border-subtle bg-background px-3.5 py-2 text-sm outline-none focus:border-primary"
+              className="w-full max-w-xs rounded-lg border border-input-border bg-background px-3.5 py-2 text-sm outline-none focus:border-primary"
             />
           </div>
 
@@ -243,6 +271,15 @@ export default function AdminProductsPage() {
               selectedSlug={selectedSlug}
               onSelect={setSelectedSlug}
               onDelete={handleDelete}
+              isLoading={loadingProducts}
+              isError={productsErrored}
+              onRetry={refetchProducts}
+            />
+            <Pagination
+              page={page}
+              pageSize={PRODUCT_PAGE_SIZE}
+              total={listTotal}
+              onPageChange={setPage}
             />
           </div>
         </div>

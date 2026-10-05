@@ -1,35 +1,38 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { useProducts } from "@/lib/use-products";
+import { useProductsList } from "@/lib/use-products";
+import { useDialog } from "@/lib/use-dialog";
 import { formatPrice } from "@/lib/format";
 import { SearchIcon } from "@/components/ui/icons";
 
 const MAX_QUICK_RESULTS = 6;
+const DEBOUNCE_MS = 250;
 
 export function SearchOverlay() {
-  const products = useProducts();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (open) inputRef.current?.focus();
-  }, [open]);
-
-  const matches = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return [];
-    return products.filter((p) => p.name.toLowerCase().includes(q)).slice(0, MAX_QUICK_RESULTS);
-  }, [products, query]);
+  const [debouncedQuery, setDebouncedQuery] = useState("");
 
   function close() {
     setOpen(false);
     setQuery("");
   }
+
+  const panelRef = useDialog<HTMLDivElement>(open, close, { trapFocus: false });
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(query.trim()), DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  const { products: matches } = useProductsList(
+    { search: debouncedQuery, limit: MAX_QUICK_RESULTS },
+    { enabled: Boolean(debouncedQuery) },
+  );
 
   function goToResults(e?: FormEvent) {
     e?.preventDefault();
@@ -45,6 +48,8 @@ export function SearchOverlay() {
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-label="Search"
+        aria-expanded={open}
+        aria-controls="site-search"
         className="flex h-9 w-9 items-center justify-center rounded-full text-foreground transition-colors hover:bg-foreground/5"
       >
         <SearchIcon className="h-5 w-5" />
@@ -58,14 +63,20 @@ export function SearchOverlay() {
             onClick={close}
             className="fixed inset-0 z-40 cursor-default"
           />
-          <div className="absolute right-0 top-full z-50 mt-2 w-80 rounded-xl border border-border-subtle bg-background p-3 shadow-lg sm:w-96">
+          <div
+            id="site-search"
+            ref={panelRef}
+            role="dialog"
+            aria-label="Search products"
+            className="absolute right-0 top-full z-50 mt-2 w-80 rounded-xl border border-input-border bg-background p-3 shadow-lg sm:w-96"
+          >
             <form onSubmit={goToResults}>
               <input
-                ref={inputRef}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
+                aria-label="Search products"
                 placeholder="Search products…"
-                className="w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm outline-none focus:border-primary"
+                className="w-full rounded-lg border border-input-border bg-background px-3 py-2 text-sm outline-none focus:border-primary"
               />
             </form>
 

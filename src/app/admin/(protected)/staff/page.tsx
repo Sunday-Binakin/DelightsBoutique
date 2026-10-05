@@ -1,12 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { getAllStaff, type StaffMember } from "@/lib/staff";
-import { getAuditLog } from "@/lib/audit-log";
+import { STAFF_PERMISSION_LABELS, type StaffMember, type StaffPermission } from "@/lib/staff";
+import { useStaffList } from "@/lib/use-admin-staff";
+import { useSession } from "@/lib/use-session";
+import { hasPermission } from "@/lib/admin-auth";
+import { useAuditLog } from "@/lib/use-audit-log";
+import { usePagedState } from "@/lib/use-paged-state";
 import { Tabs } from "@/components/ui/Tabs";
+import { Pagination } from "@/components/ui/Pagination";
 import { StaffPreview } from "@/components/admin/StaffPreview";
 import { Breadcrumb } from "@/components/admin/Breadcrumb";
 import { LinkButton } from "@/components/ui/Button";
+import { LoadingBlock } from "@/components/ui/Spinner";
+import { QueryError } from "@/components/ui/QueryError";
 
 const ALL = "all";
 const ACTIVE = "active";
@@ -14,6 +21,8 @@ const DEACTIVATED = "deactivated";
 
 const TAB_STAFF = "Staff Accounts";
 const TAB_AUDIT = "Audit Trail";
+
+const AUDIT_LOG_PAGE_SIZE = 20;
 
 function StaffTable({
   staff,
@@ -60,12 +69,12 @@ function StaffTable({
                   <span className="text-muted-foreground">None</span>
                 ) : (
                   <div className="flex flex-wrap gap-1">
-                    {member.permissions.map((p) => (
+                    {member.permissions.map((p: StaffPermission) => (
                       <span
                         key={p}
                         className="rounded-full bg-muted px-2 py-0.5 text-xs text-foreground/80"
                       >
-                        {p.replace("Manage ", "")}
+                        {STAFF_PERMISSION_LABELS[p]}
                       </span>
                     ))}
                   </div>
@@ -89,7 +98,14 @@ function StaffTable({
 }
 
 function AuditTrailSection() {
-  const entries = getAuditLog();
+  const [page, setPage] = usePagedState("audit");
+  const { entries, total, isLoading, isError, refetch } = useAuditLog({
+    limit: AUDIT_LOG_PAGE_SIZE,
+    page,
+  });
+
+  if (isLoading) return <LoadingBlock />;
+  if (isError) return <QueryError label="the audit log" onRetry={refetch} />;
 
   if (entries.length === 0) {
     return (
@@ -123,19 +139,19 @@ function AuditTrailSection() {
           ))}
         </tbody>
       </table>
+      <Pagination page={page} pageSize={AUDIT_LOG_PAGE_SIZE} total={total} onPageChange={setPage} />
     </div>
   );
 }
 
 export default function AdminStaffPage() {
-  const [tab, setTab] = useState(TAB_STAFF);
-  const [staff, setStaff] = useState<StaffMember[]>(() => getAllStaff());
+  const { data: session } = useSession();
+  const canManageStaff = hasPermission(session, "manageStaff");
+  const [chosenTab, setTab] = useState(TAB_STAFF);
+  const tab = canManageStaff ? chosenTab : TAB_AUDIT;
+  const { staff, isLoading, isError, refetch } = useStaffList({ enabled: canManageStaff });
   const [filter, setFilter] = useState<string>(ALL);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-
-  function refresh() {
-    setStaff(getAllStaff());
-  }
 
   function selectFilter(value: string) {
     setFilter(value);
@@ -165,15 +181,23 @@ export default function AdminStaffPage() {
             Create staff accounts and control what each one can do.
           </p>
         </div>
-        <LinkButton href="/admin/staff/new">+ Add Staff</LinkButton>
+        {canManageStaff && <LinkButton href="/admin/staff/new">+ Add Staff</LinkButton>}
       </div>
 
       <div className="mt-6">
-        <Tabs tabs={[TAB_STAFF, TAB_AUDIT]} active={tab} onChange={setTab} />
+        <Tabs
+          tabs={canManageStaff ? [TAB_STAFF, TAB_AUDIT] : [TAB_AUDIT]}
+          active={tab}
+          onChange={setTab}
+        />
       </div>
 
       {tab === TAB_AUDIT ? (
         <AuditTrailSection />
+      ) : isLoading ? (
+        <LoadingBlock />
+      ) : isError ? (
+        <QueryError label="staff" onRetry={refetch} />
       ) : staff.length === 0 ? (
         <p className="mt-6 rounded-xl border border-dashed border-border-subtle py-20 text-center text-sm text-muted-foreground">
           No staff accounts yet — add one to grant limited access to the admin panel.
@@ -223,7 +247,7 @@ export default function AdminStaffPage() {
             <StaffTable staff={inFilter} selectedId={selectedId} onSelect={setSelectedId} />
           </div>
 
-          <StaffPreview staff={selectedStaff} onUpdate={refresh} />
+          <StaffPreview staff={selectedStaff} />
         </div>
       )}
     </div>
