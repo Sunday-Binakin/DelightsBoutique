@@ -4,6 +4,8 @@ import {
   applyLocalCatalogFilters,
   catalogOptions,
   catalogRequestParams,
+  catalogScope,
+  mergeOptions,
 } from "./catalog-filters";
 import { makeProductDto } from "@/test/fixtures";
 import type { Product } from "@/lib/types";
@@ -71,6 +73,21 @@ describe("applyLocalCatalogFilters", () => {
       sort: "price-desc",
     });
     expect(sorted.map((p) => p.slug)).toEqual(["pricey", "edge-250", "edge-100", "cheap"]);
+  });
+});
+
+describe("catalogScope", () => {
+  it("carries only the price range, so facets count what the list shows", () => {
+    expect(catalogScope({ ...DEFAULT_CATALOG_FILTERS, priceBand: 2, sizes: ["M"], sort: "rating" })).toEqual({
+      minPrice: 100,
+      maxPrice: 250,
+    });
+  });
+});
+
+describe("mergeOptions", () => {
+  it("combines facet values with selections the facets don't list", () => {
+    expect(mergeOptions(["L", "M"], ["XL", "M"])).toEqual(["L", "M", "XL"]);
   });
 });
 

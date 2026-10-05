@@ -1,7 +1,14 @@
 "use client";
 
 import { keepPreviousData, useQuery, useQueries } from "@tanstack/react-query";
-import { getProducts, getProductBySlug, toProduct, type ProductListParams } from "@/lib/api/products";
+import {
+  getProducts,
+  getProductBySlug,
+  getProductFacets,
+  toProduct,
+  type ProductFacetScope,
+  type ProductListParams,
+} from "@/lib/api/products";
 import { isNotFoundError, shouldRetryQuery } from "@/lib/api/client";
 import type { Product } from "@/lib/types";
 
@@ -25,6 +32,16 @@ export function useProductsList(params: ProductListParams = {}, options: { enabl
     products: query.data ? query.data.data.map(toProduct) : [],
     total: query.data?.total ?? 0,
   };
+}
+
+/** Every size and colour across the whole scope, not just the page on screen. */
+export function useProductFacets(scope: ProductFacetScope) {
+  const query = useQuery({
+    queryKey: ["product-facets", scope],
+    queryFn: () => getProductFacets(scope),
+    placeholderData: keepPreviousData,
+  });
+  return { sizes: query.data?.sizes ?? [], colors: query.data?.colors ?? [] };
 }
 
 export function useProduct(slug: string | undefined) {

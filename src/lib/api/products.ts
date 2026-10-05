@@ -19,6 +19,23 @@ export function getProducts(params: ProductListParams = {}): Promise<Paginated<P
   return apiFetch<Paginated<ProductDto>>("/api/products", { query: { ...params } });
 }
 
+export interface ProductFacetScope {
+  category?: string;
+  search?: string;
+  badge?: "new" | "bestSeller";
+  minPrice?: number;
+  maxPrice?: number;
+}
+
+export interface ProductFacets {
+  sizes: string[];
+  colors: string[];
+}
+
+export function getProductFacets(scope: ProductFacetScope): Promise<ProductFacets> {
+  return apiFetch<ProductFacets>("/api/products/facets", { query: { ...scope } });
+}
+
 export function getProductBySlug(slug: string): Promise<ProductDto> {
   return apiFetch<ProductDto>(`/api/products/${encodeURIComponent(slug)}`);
 }

@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { PRODUCT_PAGE_SIZE, useProductsList } from "@/lib/use-products";
+import { PRODUCT_PAGE_SIZE, useProductFacets, useProductsList } from "@/lib/use-products";
 import { usePagedState } from "@/lib/use-paged-state";
 import { useStorefrontCopy } from "@/lib/use-storefront-copy";
 import {
   DEFAULT_CATALOG_FILTERS,
-  catalogOptions,
   catalogRequestParams,
+  catalogScope,
+  mergeOptions,
   type CatalogFilters,
 } from "@/lib/catalog-filters";
 import { CatalogView } from "@/components/catalog/CatalogView";
@@ -26,6 +27,8 @@ export default function NewArrivalsPage() {
   });
   const copy = useStorefrontCopy();
 
+  const facets = useProductFacets({ badge: "new", ...catalogScope(filters) });
+
   if (isLoading) return <LoadingBlock />;
   if (isError) return <QueryError label="new arrivals" onRetry={refetch} />;
 
@@ -37,8 +40,8 @@ export default function NewArrivalsPage() {
       total={total}
       filters={filters}
       onFiltersChange={setFilters}
-      sizeOptions={catalogOptions(products, filters.sizes, "sizes")}
-      colorOptions={catalogOptions(products, filters.colors, "colors")}
+      sizeOptions={mergeOptions(facets.sizes, filters.sizes)}
+      colorOptions={mergeOptions(facets.colors, filters.colors)}
       pagination={
         <Pagination page={page} pageSize={PRODUCT_PAGE_SIZE} total={total} onPageChange={setPage} />
       }

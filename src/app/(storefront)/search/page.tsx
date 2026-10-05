@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { PRODUCT_PAGE_SIZE, useProductsList } from "@/lib/use-products";
+import { PRODUCT_PAGE_SIZE, useProductFacets, useProductsList } from "@/lib/use-products";
 import { usePagedState } from "@/lib/use-paged-state";
 import {
   DEFAULT_CATALOG_FILTERS,
-  catalogOptions,
   catalogRequestParams,
+  catalogScope,
+  mergeOptions,
   type CatalogFilters,
 } from "@/lib/catalog-filters";
 import { CatalogView } from "@/components/catalog/CatalogView";
@@ -32,6 +33,8 @@ export default function SearchPage() {
     { enabled: Boolean(trimmed) },
   );
 
+  const facets = useProductFacets({ search: trimmed || undefined, ...catalogScope(filters) });
+
   if (query === null) return null;
   if (trimmed && isLoading) return <LoadingBlock />;
   if (trimmed && isError) return <QueryError label="search results" onRetry={refetch} />;
@@ -44,8 +47,8 @@ export default function SearchPage() {
       total={total}
       filters={filters}
       onFiltersChange={setFilters}
-      sizeOptions={catalogOptions(products, filters.sizes, "sizes")}
-      colorOptions={catalogOptions(products, filters.colors, "colors")}
+      sizeOptions={mergeOptions(facets.sizes, filters.sizes)}
+      colorOptions={mergeOptions(facets.colors, filters.colors)}
       pagination={
         <Pagination page={page} pageSize={PRODUCT_PAGE_SIZE} total={total} onPageChange={setPage} />
       }

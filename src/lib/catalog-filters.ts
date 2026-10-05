@@ -41,6 +41,17 @@ export function catalogRequestParams(filters: CatalogFilters): Partial<ProductLi
   };
 }
 
+/** The price part of a selection: facets must count the same price range the list shows. */
+export function catalogScope(filters: CatalogFilters): { minPrice?: number; maxPrice?: number } {
+  const band = PRICE_BANDS[filters.priceBand];
+  return { minPrice: band.minPrice, maxPrice: band.maxPrice };
+}
+
+/** Facet values plus any selected value the facets don't list, sorted. */
+export function mergeOptions(available: string[], selected: string[]): string[] {
+  return [...new Set([...available, ...selected])].sort();
+}
+
 /** Options for the size and colour pickers: the loaded products' values, plus any selected value. */
 export function catalogOptions(
   products: Product[],

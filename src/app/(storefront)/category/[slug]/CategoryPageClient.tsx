@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { useCategoriesQuery } from "@/lib/use-categories";
-import { PRODUCT_PAGE_SIZE, useProductsList } from "@/lib/use-products";
+import { PRODUCT_PAGE_SIZE, useProductFacets, useProductsList } from "@/lib/use-products";
 import { usePagedState } from "@/lib/use-paged-state";
 import {
   DEFAULT_CATALOG_FILTERS,
-  catalogOptions,
   catalogRequestParams,
+  catalogScope,
+  mergeOptions,
   type CatalogFilters,
 } from "@/lib/catalog-filters";
 import { CatalogView } from "@/components/catalog/CatalogView";
@@ -33,6 +34,8 @@ export function CategoryPageClient({ slug }: { slug: string }) {
     limit: PRODUCT_PAGE_SIZE,
     ...catalogRequestParams(filters),
   });
+
+  const facets = useProductFacets({ category: slug, ...catalogScope(filters) });
 
   if (loadingCategories || loadingProducts) return <LoadingBlock />;
 
@@ -69,8 +72,8 @@ export function CategoryPageClient({ slug }: { slug: string }) {
       total={total}
       filters={filters}
       onFiltersChange={setFilters}
-      sizeOptions={catalogOptions(products, filters.sizes, "sizes")}
-      colorOptions={catalogOptions(products, filters.colors, "colors")}
+      sizeOptions={mergeOptions(facets.sizes, filters.sizes)}
+      colorOptions={mergeOptions(facets.colors, filters.colors)}
       pagination={
         <Pagination page={page} pageSize={PRODUCT_PAGE_SIZE} total={total} onPageChange={setPage} />
       }
