@@ -8,7 +8,7 @@ import {
   resetStaffPassword,
   toStaffMember,
 } from "@/lib/api/staff";
-import type { CreateStaffBody, UpdateStaffBody } from "@/lib/api/types";
+import type { CreateStaffBody, StaffDto, UpdateStaffBody } from "@/lib/api/types";
 
 export function useStaffList({ enabled = true }: { enabled?: boolean } = {}) {
   const query = useQuery({
@@ -33,7 +33,18 @@ export function useUpdateStaff() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, body }: { id: string; body: UpdateStaffBody }) => updateStaff(id, body),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-staff"] }),
+    onMutate: async ({ id, body }) => {
+      await queryClient.cancelQueries({ queryKey: ["admin-staff"] });
+      const previous = queryClient.getQueryData<StaffDto[]>(["admin-staff"]);
+      queryClient.setQueryData<StaffDto[]>(["admin-staff"], (old) =>
+        old?.map((member) => (member.id === id ? { ...member, ...body } : member)),
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous) queryClient.setQueryData(["admin-staff"], context.previous);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["admin-staff"] }),
   });
 }
 

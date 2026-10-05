@@ -22,6 +22,28 @@ export function breadcrumbJsonLd(items: Array<{ name: string; path: string }>) {
   };
 }
 
+export function siteJsonLd() {
+  return [
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      name: "Delight's Boutique",
+      url: SITE_URL,
+      potentialAction: {
+        "@type": "SearchAction",
+        target: `${SITE_URL}/search?q={search_term_string}`,
+        "query-input": "required name=search_term_string",
+      },
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      name: "Delight's Boutique",
+      url: SITE_URL,
+    },
+  ];
+}
+
 /** schema.org Product data. Inline data-URL photos are left out: crawlers can't fetch them. */
 export function productJsonLd(product: ProductDto) {
   const url = `${SITE_URL}/product/${product.slug}`;

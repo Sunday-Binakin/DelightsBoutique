@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { getCategoryBySlug } from "@/lib/api/categories";
 import { SITE } from "@/lib/constants";
+import { SITE_URL, breadcrumbJsonLd } from "@/lib/seo";
+import { JsonLd } from "@/components/seo/JsonLd";
 import { CategoryPageClient } from "./CategoryPageClient";
 
 interface CategoryPageProps {
@@ -20,6 +22,7 @@ export async function generateMetadata({ params }: CategoryPageProps): Promise<M
   return {
     title: category.name,
     description,
+    alternates: { canonical: `${SITE_URL}/category/${category.slug}` },
     // openGraph/twitter don't merge with the root layout's — every field
     // we want (image, site name, card type) has to be repeated here.
     openGraph: {
@@ -40,5 +43,18 @@ export async function generateMetadata({ params }: CategoryPageProps): Promise<M
 
 export default async function CategoryPage({ params }: CategoryPageProps) {
   const { slug } = await params;
-  return <CategoryPageClient slug={slug} />;
+  const category = await getCategoryBySlug(slug).catch(() => null);
+  return (
+    <>
+      {category && (
+        <JsonLd
+          data={breadcrumbJsonLd([
+            { name: "Home", path: "/" },
+            { name: category.name, path: `/category/${category.slug}` },
+          ])}
+        />
+      )}
+      <CategoryPageClient slug={slug} />
+    </>
+  );
 }

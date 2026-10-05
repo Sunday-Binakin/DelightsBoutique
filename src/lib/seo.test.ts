@@ -1,5 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { breadcrumbJsonLd, productJsonLd } from "./seo";
+import { breadcrumbJsonLd, productJsonLd, siteJsonLd } from "./seo";
+
+describe("siteJsonLd", () => {
+  it("describes the site with a search action pointing at the search page", () => {
+    const [website, organization] = siteJsonLd();
+    expect(website).toMatchObject({
+      "@type": "WebSite",
+      potentialAction: {
+        "@type": "SearchAction",
+        target: "http://localhost:3000/search?q={search_term_string}",
+      },
+    });
+    expect(organization).toMatchObject({ "@type": "Organization", name: "Delight's Boutique" });
+  });
+});
 import { makeProductDto } from "@/test/fixtures";
 
 describe("productJsonLd", () => {

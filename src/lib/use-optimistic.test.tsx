@@ -8,6 +8,8 @@ import type { AdminOrderDto, OrderNotificationDto, Paginated, Unpaginated } from
 import { useUpdateOrderStatus } from "./use-admin-orders";
 import { useMarkNotificationRead } from "./use-admin-notifications";
 import { useDeleteProduct } from "./use-admin-catalog";
+import { useUpdateCustomerWholesale } from "./use-admin-customers";
+import { useUpdateStaff } from "./use-admin-staff";
 import { makeProductDto } from "@/test/fixtures";
 
 function makeClient() {
@@ -117,6 +119,58 @@ describe("optimistic product delete", () => {
       "silk-scarf",
       "wool-hat",
     ]);
+  });
+});
+
+describe("optimistic customer and staff toggles", () => {
+  it("flips a customer's wholesale flag and restores it when the change fails", async () => {
+    const { client, wrapper } = makeClient();
+    const customers = {
+      data: [{ phone: "0240000000", name: "Ama", orderCount: 2, totalSpent: 200, lastOrderAt: "2026-10-01T00:00:00Z", wholesale: false }],
+      page: 1,
+      limit: 20,
+      total: 1,
+    };
+    client.setQueryData(["admin-customers", {}], customers);
+    server.use(
+      http.patch(`${API}/api/admin/customers/0240000000`, () =>
+        HttpResponse.json({ error: { code: "INTERNAL_ERROR", message: "Oops." } }, { status: 500 }),
+      ),
+    );
+
+    const { result } = renderHook(() => useUpdateCustomerWholesale(), { wrapper });
+    act(() => {
+      result.current.mutate({ phone: "0240000000", wholesale: true });
+    });
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(
+      client.getQueryData<typeof customers>(["admin-customers", {}])?.data[0].wholesale,
+    ).toBe(false);
+  });
+
+  it("shows a staff member as deactivated while the change is pending", async () => {
+    const { client, wrapper } = makeClient();
+    const staff = [{ id: "s1", name: "Kofi", email: "kofi@x.com", phone: null, permissions: [], active: true }];
+    client.setQueryData(["admin-staff"], staff);
+    const response = gate();
+    server.use(
+      http.patch(`${API}/api/admin/staff/s1`, async () => {
+        await response.promise;
+        return HttpResponse.json({ ...staff[0], active: false });
+      }),
+    );
+
+    const { result } = renderHook(() => useUpdateStaff(), { wrapper });
+    act(() => {
+      result.current.mutate({ id: "s1", body: { active: false } });
+    });
+
+    await waitFor(() =>
+      expect(client.getQueryData<typeof staff>(["admin-staff"])?.[0].active).toBe(false),
+    );
+    response.release();
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
   });
 });
 

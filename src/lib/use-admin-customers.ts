@@ -10,6 +10,7 @@ import {
   type CustomerListParams,
 } from "@/lib/api/customers";
 import { toOrder } from "@/lib/api/orders";
+import type { CustomerDto, Paginated } from "@/lib/api/types";
 
 export const ADMIN_CUSTOMERS_PAGE_SIZE = 20;
 
@@ -56,6 +57,20 @@ export function useUpdateCustomerWholesale() {
   return useMutation({
     mutationFn: ({ phone, wholesale }: { phone: string; wholesale: boolean }) =>
       updateCustomerWholesale(phone, wholesale),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["admin-customers"] }),
+    onMutate: async ({ phone, wholesale }) => {
+      await queryClient.cancelQueries({ queryKey: ["admin-customers"] });
+      const lists = queryClient.getQueriesData<Paginated<CustomerDto>>({ queryKey: ["admin-customers"] });
+      queryClient.setQueriesData<Paginated<CustomerDto>>({ queryKey: ["admin-customers"] }, (old) =>
+        old && {
+          ...old,
+          data: old.data.map((c) => (c.phone === phone ? { ...c, wholesale } : c)),
+        },
+      );
+      return { lists };
+    },
+    onError: (_err, _vars, context) => {
+      context?.lists.forEach(([key, data]) => queryClient.setQueryData(key, data));
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["admin-customers"] }),
   });
 }
