@@ -21,8 +21,8 @@ export default async function Image() {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          background: "linear-gradient(135deg, #7c3f42 0%, #3d1f20 100%)",
-          color: "#fbf7f2",
+          background: "linear-gradient(135deg, #0550c2 0%, #bf5501 100%)",
+          color: "#ffffff",
         }}
       >
         <div style={{ fontSize: 76, fontWeight: 700, letterSpacing: -1 }}>{SITE.name}</div>
@@ -30,7 +30,7 @@ export default async function Image() {
           style={{
             marginTop: 22,
             fontSize: 30,
-            color: "#e8d9cf",
+            color: "#cfe0f7",
             maxWidth: 900,
             textAlign: "center",
           }}

@@ -1,10 +1,11 @@
 import Link from "next/link";
 import type { ComponentPropsWithoutRef } from "react";
+import { BRAND_GRADIENT } from "@/lib/tone";
 
 type Variant = "primary" | "outline" | "ghost" | "danger";
 
 const VARIANT_CLASSES: Record<Variant, string> = {
-  primary: "bg-primary text-white hover:bg-primary-dark",
+  primary: `${BRAND_GRADIENT} text-white hover:from-primary-dark hover:to-accent-dark`,
   outline: "border border-current bg-transparent hover:bg-foreground/5",
   ghost: "bg-transparent hover:bg-foreground/5",
   danger: "bg-red-600 text-white hover:bg-red-700",

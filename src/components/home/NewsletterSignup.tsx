@@ -46,6 +46,7 @@ export function NewsletterSignup() {
               aria-label="Email address"
               placeholder="Email address"
               className="w-full rounded-full border border-input-border bg-background px-4 py-2.5 text-sm outline-none focus:border-primary disabled:opacity-50"
+              suppressHydrationWarning
             />
             <Button type="submit" disabled={subscribe.isPending}>
               {subscribe.isPending ? "Subscribing…" : "Subscribe"}

@@ -8,6 +8,7 @@ import { login, verifyOtp, resendOtp } from "@/lib/api/auth";
 import { ApiError, describeApiError } from "@/lib/api/client";
 import { SESSION_QUERY_KEY } from "@/lib/use-session";
 import { Button } from "@/components/ui/Button";
+import { EyeIcon, EyeOffIcon } from "@/components/ui/icons";
 
 const inputClasses =
   "w-full rounded-lg border border-input-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-primary disabled:opacity-50";
@@ -19,6 +20,7 @@ export default function AdminLoginPage() {
   const [step, setStep] = useState<"credentials" | "otp">("credentials");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [code, setCode] = useState("");
   const [loginToken, setLoginToken] = useState("");
   const [error, setError] = useState("");
@@ -110,15 +112,26 @@ export default function AdminLoginPage() {
               </label>
               <label className="flex flex-col gap-1.5 text-sm font-medium text-foreground">
                 Password
-                <input
-                  type="password"
-                  required
-                  disabled={submitting}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className={inputClasses}
-                  placeholder="••••••••"
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    disabled={submitting}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className={`${inputClasses} pr-10`}
+                    placeholder="••••••••"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    aria-pressed={showPassword}
+                    className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? <EyeOffIcon className="h-4.5 w-4.5" /> : <EyeIcon className="h-4.5 w-4.5" />}
+                  </button>
+                </div>
               </label>
               <Button type="submit" className="mt-2" disabled={submitting}>
                 {submitting ? "Signing In…" : "Sign In"}

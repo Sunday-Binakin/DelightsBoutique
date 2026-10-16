@@ -11,9 +11,9 @@ export interface BannerSet {
 export const TEXT_COLOR_OPTIONS: Array<{ label: string; value: string }> = [
   { label: "White", value: "#ffffff" },
   { label: "Cream", value: "#f3e9da" },
-  { label: "Gold", value: "#c9a66b" },
+  { label: "Orange", value: "#ff7101" },
   { label: "Charcoal", value: "#2b2320" },
-  { label: "Maroon", value: "#7c3f42" },
+  { label: "Blue", value: "#0550c2" },
 ];
 
 export const BANNER_LABELS: Record<keyof BannerSet, string> = {
