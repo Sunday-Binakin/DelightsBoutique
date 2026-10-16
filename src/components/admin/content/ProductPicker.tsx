@@ -48,8 +48,9 @@ export function ProductPicker({
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
+          aria-label="Search products"
           placeholder="Search products…"
-          className="w-full rounded-lg border border-border-subtle bg-background py-2.5 pl-9 pr-3 text-sm outline-none focus:border-primary"
+          className="w-full rounded-lg border border-input-border bg-background py-2.5 pl-9 pr-3 text-sm outline-none focus:border-primary"
         />
       </div>
 

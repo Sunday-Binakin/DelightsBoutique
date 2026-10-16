@@ -1,25 +1,36 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import {
-  getCollectionSection,
-  saveCollectionSection,
-  pickCollectionTabProducts,
-  type CollectionSectionContent,
-} from "@/lib/collection-section";
-import { logAction } from "@/lib/audit-log";
+import { useMarkUnsaved } from "@/lib/unsaved-changes";
+import { useCollectionSectionQuery } from "@/lib/use-collection-section";
+import { FULL_CATALOG_LIMIT, useProductsList } from "@/lib/use-products";
+import { useUpdateCollectionSection } from "@/lib/use-admin-content";
+import { pickCollectionTabProducts } from "@/lib/collection-section";
 import type { Product } from "@/lib/types";
-import { getAllProducts } from "@/lib/product-store";
 import { Button } from "@/components/ui/Button";
 import { ProductPicker } from "@/components/admin/content/ProductPicker";
 import { ProductVisual } from "@/components/ui/ProductVisual";
+import { LoadingBlock } from "@/components/ui/Spinner";
+import { QueryError } from "@/components/ui/QueryError";
+import { useToast } from "@/components/ui/ToastProvider";
 
 const inputClasses =
-  "w-full rounded-lg border border-border-subtle bg-background px-3.5 py-2.5 text-sm outline-none focus:border-primary";
+  "w-full rounded-lg border border-input-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-primary";
 const labelClasses = "flex flex-col gap-1.5 text-sm font-medium text-foreground";
 
+interface CollectionSectionDraft {
+  eyebrow: string;
+  title: string;
+  newArrivalsLabel: string;
+  bestSellersLabel: string;
+  wholesalePicksLabel: string;
+  newArrivalsSlugs: string[];
+  bestSellersSlugs: string[];
+  wholesalePicksSlugs: string[];
+}
+
 interface CollectionSectionPreviewProps {
-  content: CollectionSectionContent;
+  content: CollectionSectionDraft;
   activeIndex: 0 | 1 | 2;
   onTabClick: (index: 0 | 1 | 2) => void;
   previewProducts: Product[];
@@ -73,15 +84,77 @@ function CollectionSectionPreview({
 }
 
 export function CollectionSectionForm() {
-  const [content, setContent] = useState<CollectionSectionContent>(() => getCollectionSection());
-  const [saved, setSaved] = useState(true);
-  const [products] = useState(() => getAllProducts());
-  const [activeIndex, setActiveIndex] = useState<0 | 1 | 2>(0);
+  const {
+    collectionSection,
+    isLoading: loadingSection,
+    isError: sectionErrored,
+    refetch: refetchSection,
+  } = useCollectionSectionQuery();
+  const {
+    products,
+    total: catalogTotal,
+    isLoading: loadingProducts,
+    isError: productsErrored,
+    refetch: refetchProducts,
+  } = useProductsList({ limit: FULL_CATALOG_LIMIT });
 
-  function update<K extends keyof CollectionSectionContent>(
-    key: K,
-    value: CollectionSectionContent[K],
-  ) {
+  if (loadingSection || loadingProducts) return <LoadingBlock />;
+  if (sectionErrored || productsErrored) {
+    return (
+      <QueryError
+        label="the collection section"
+        onRetry={() => {
+          refetchSection();
+          refetchProducts();
+        }}
+      />
+    );
+  }
+
+  // Auto-filled tabs aren't a pick; starting from them would save them as one.
+  const initialContent: CollectionSectionDraft = {
+    eyebrow: collectionSection.eyebrow,
+    title: collectionSection.title,
+    newArrivalsLabel: collectionSection.newArrivalsLabel,
+    bestSellersLabel: collectionSection.bestSellersLabel,
+    wholesalePicksLabel: collectionSection.wholesalePicksLabel,
+    newArrivalsSlugs: collectionSection.newArrivalsCurated
+      ? collectionSection.newArrivals.map((p) => p.slug)
+      : [],
+    bestSellersSlugs: collectionSection.bestSellersCurated
+      ? collectionSection.bestSellers.map((p) => p.slug)
+      : [],
+    wholesalePicksSlugs: collectionSection.wholesalePicksCurated
+      ? collectionSection.wholesalePicks.map((p) => p.slug)
+      : [],
+  };
+
+  return (
+    <CollectionSectionFormInner
+      initialContent={initialContent}
+      allProducts={products}
+      catalogTotal={catalogTotal}
+    />
+  );
+}
+
+function CollectionSectionFormInner({
+  initialContent,
+  allProducts,
+  catalogTotal,
+}: {
+  initialContent: CollectionSectionDraft;
+  allProducts: Product[];
+  catalogTotal: number;
+}) {
+  const [content, setContent] = useState<CollectionSectionDraft>(initialContent);
+  const [saved, setSaved] = useState(true);
+  useMarkUnsaved(!saved);
+  const [activeIndex, setActiveIndex] = useState<0 | 1 | 2>(0);
+  const updateCollectionSection = useUpdateCollectionSection();
+  const toast = useToast();
+
+  function update<K extends keyof CollectionSectionDraft>(key: K, value: CollectionSectionDraft[K]) {
     setContent((prev) => ({ ...prev, [key]: value }));
     setSaved(false);
   }
@@ -97,16 +170,27 @@ export function CollectionSectionForm() {
     setActiveIndex(tabIndex);
   }
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    saveCollectionSection(content);
-    logAction('Updated "Shop the Collection" section');
-    setSaved(true);
+    try {
+      await updateCollectionSection.mutateAsync(content);
+      setSaved(true);
+      toast.success("Collection section saved.");
+    } catch {
+      toast.error("Couldn't save the collection section. Try again.");
+    }
   }
 
   return (
     <div className="mt-4 grid gap-8 lg:grid-cols-[1fr_320px]">
       <form onSubmit={handleSubmit} className="flex max-w-xl flex-col gap-5">
+        {catalogTotal > allProducts.length && (
+          <p className="text-xs text-amber-700">
+            Pickers show the first {allProducts.length} of {catalogTotal} products. Products beyond
+            that can&apos;t be picked here yet.
+          </p>
+        )}
+
         <label className={labelClasses}>
           Eyebrow
           <input
@@ -141,10 +225,10 @@ export function CollectionSectionForm() {
             />
           </label>
           <ProductPicker
-            products={products}
+            products={allProducts}
             selectedSlugs={content.newArrivalsSlugs}
             onChange={(slugs) => updateTabSlugs("newArrivalsSlugs", slugs, 0)}
-            previewProducts={pickCollectionTabProducts(products, content.newArrivalsSlugs, 0)}
+            previewProducts={pickCollectionTabProducts(allProducts, content.newArrivalsSlugs, 0)}
           />
         </div>
 
@@ -158,10 +242,10 @@ export function CollectionSectionForm() {
             />
           </label>
           <ProductPicker
-            products={products}
+            products={allProducts}
             selectedSlugs={content.bestSellersSlugs}
             onChange={(slugs) => updateTabSlugs("bestSellersSlugs", slugs, 1)}
-            previewProducts={pickCollectionTabProducts(products, content.bestSellersSlugs, 1)}
+            previewProducts={pickCollectionTabProducts(allProducts, content.bestSellersSlugs, 1)}
           />
         </div>
 
@@ -175,15 +259,15 @@ export function CollectionSectionForm() {
             />
           </label>
           <ProductPicker
-            products={products}
+            products={allProducts}
             selectedSlugs={content.wholesalePicksSlugs}
             onChange={(slugs) => updateTabSlugs("wholesalePicksSlugs", slugs, 2)}
-            previewProducts={pickCollectionTabProducts(products, content.wholesalePicksSlugs, 2)}
+            previewProducts={pickCollectionTabProducts(allProducts, content.wholesalePicksSlugs, 2)}
           />
         </div>
 
-        <Button type="submit" disabled={saved} className="self-start">
-          {saved ? "Saved" : "Save"}
+        <Button type="submit" disabled={saved || updateCollectionSection.isPending} className="self-start">
+          {updateCollectionSection.isPending ? "Saving…" : saved ? "Saved" : "Save"}
         </Button>
       </form>
 
@@ -196,7 +280,7 @@ export function CollectionSectionForm() {
           activeIndex={activeIndex}
           onTabClick={setActiveIndex}
           previewProducts={pickCollectionTabProducts(
-            products,
+            allProducts,
             [content.newArrivalsSlugs, content.bestSellersSlugs, content.wholesalePicksSlugs][
               activeIndex
             ],

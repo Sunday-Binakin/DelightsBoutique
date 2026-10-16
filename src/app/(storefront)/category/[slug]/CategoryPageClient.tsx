@@ -1,13 +1,57 @@
 "use client";
 
-import { useCategories } from "@/lib/use-categories";
-import { useProducts } from "@/lib/use-products";
+import { useState } from "react";
+import { useCategoriesQuery } from "@/lib/use-categories";
+import { PRODUCT_PAGE_SIZE, useProductFacets, useProductsList } from "@/lib/use-products";
+import { usePagedState } from "@/lib/use-paged-state";
+import {
+  DEFAULT_CATALOG_FILTERS,
+  catalogRequestParams,
+  catalogScope,
+  mergeOptions,
+  type CatalogFilters,
+} from "@/lib/catalog-filters";
 import { CatalogView } from "@/components/catalog/CatalogView";
 import { LinkButton } from "@/components/ui/Button";
+import { LoadingBlock } from "@/components/ui/Spinner";
+import { QueryError } from "@/components/ui/QueryError";
+import { Pagination } from "@/components/ui/Pagination";
 
 export function CategoryPageClient({ slug }: { slug: string }) {
-  const category = useCategories().find((c) => c.slug === slug);
-  const products = useProducts().filter((product) => product.categorySlug === slug);
+  const { categories, isLoading: loadingCategories, isError: categoriesErrored, refetch } =
+    useCategoriesQuery();
+  const [filters, setFilters] = useState<CatalogFilters>(DEFAULT_CATALOG_FILTERS);
+  const [page, setPage] = usePagedState(`${slug}|${JSON.stringify(filters)}`);
+  const {
+    products,
+    total,
+    isLoading: loadingProducts,
+    isError: productsErrored,
+    refetch: refetchProducts,
+  } = useProductsList({
+    category: slug,
+    page,
+    limit: PRODUCT_PAGE_SIZE,
+    ...catalogRequestParams(filters),
+  });
+
+  const facets = useProductFacets({ category: slug, ...catalogScope(filters) });
+
+  if (loadingCategories || loadingProducts) return <LoadingBlock />;
+
+  if (categoriesErrored || productsErrored) {
+    return (
+      <QueryError
+        label="this category"
+        onRetry={() => {
+          refetch();
+          refetchProducts();
+        }}
+      />
+    );
+  }
+
+  const category = categories.find((c) => c.slug === slug);
 
   if (!category) {
     return (
@@ -25,6 +69,14 @@ export function CategoryPageClient({ slug }: { slug: string }) {
       title={category.name}
       subtitle={`Browse our full ${category.name.toLowerCase()} collection — retail and wholesale pricing available.`}
       products={products}
+      total={total}
+      filters={filters}
+      onFiltersChange={setFilters}
+      sizeOptions={mergeOptions(facets.sizes, filters.sizes)}
+      colorOptions={mergeOptions(facets.colors, filters.colors)}
+      pagination={
+        <Pagination page={page} pageSize={PRODUCT_PAGE_SIZE} total={total} onPageChange={setPage} />
+      }
     />
   );
 }

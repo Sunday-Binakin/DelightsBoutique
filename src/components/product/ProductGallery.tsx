@@ -5,6 +5,7 @@ import type { Product } from "@/lib/types";
 import { ProductVisual } from "@/components/ui/ProductVisual";
 import { MediaSwatch } from "@/components/ui/MediaSwatch";
 import { getCategoryArt } from "@/components/ui/category-art";
+import { resolveAssetUrl } from "@/lib/asset-url";
 
 export function ProductGallery({ product }: { product: Product }) {
   const images = product.imageUrls ?? [];
@@ -27,6 +28,7 @@ export function ProductGallery({ product }: { product: Product }) {
         icon={getCategoryArt(product.categorySlug)}
         label={product.name}
         tone={product.tone}
+        loading="eager"
         className="aspect-4/5 w-full rounded-2xl"
         iconClassName="h-1/2 w-1/2"
       />
@@ -41,8 +43,8 @@ export function ProductGallery({ product }: { product: Product }) {
               index === activeIndex ? "border-primary" : "border-transparent hover:border-border-subtle"
             }`}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element -- data URL thumbnail, not a remote asset */}
-            <img src={url} alt="" className="h-full w-full object-cover" />
+            {/* eslint-disable-next-line @next/next/no-img-element -- served from the API host, not optimised by next/image */}
+            <img src={resolveAssetUrl(url)} alt="" className="h-full w-full object-cover" />
           </button>
         ))}
       </div>

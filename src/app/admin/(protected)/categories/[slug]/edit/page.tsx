@@ -1,14 +1,21 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { getCategoryBySlug } from "@/lib/category-store";
+import { useCategoriesQuery } from "@/lib/use-categories";
 import { CategoryForm } from "@/components/admin/CategoryForm";
 import { Breadcrumb } from "@/components/admin/Breadcrumb";
 import { LinkButton } from "@/components/ui/Button";
+import { LoadingBlock } from "@/components/ui/Spinner";
+import { QueryError } from "@/components/ui/QueryError";
 
 export default function AdminEditCategoryPage() {
   const { slug } = useParams<{ slug: string }>();
-  const category = getCategoryBySlug(slug);
+  const { categories, isLoading, isError, refetch } = useCategoriesQuery();
+
+  if (isLoading) return <LoadingBlock />;
+  if (isError) return <QueryError label="this category" onRetry={refetch} />;
+
+  const category = categories.find((c) => c.slug === slug);
 
   if (!category) {
     return (

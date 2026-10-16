@@ -11,9 +11,9 @@ export interface BannerSet {
 export const TEXT_COLOR_OPTIONS: Array<{ label: string; value: string }> = [
   { label: "White", value: "#ffffff" },
   { label: "Cream", value: "#f3e9da" },
-  { label: "Gold", value: "#c9a66b" },
+  { label: "Orange", value: "#ff7101" },
   { label: "Charcoal", value: "#2b2320" },
-  { label: "Maroon", value: "#7c3f42" },
+  { label: "Blue", value: "#0550c2" },
 ];
 
 export const BANNER_LABELS: Record<keyof BannerSet, string> = {
@@ -62,22 +62,3 @@ export const DEFAULT_BANNERS: BannerSet = {
   },
 };
 
-const STORAGE_KEY = "delight-boutique-banners";
-
-export function getBanners(): BannerSet {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? { ...DEFAULT_BANNERS, ...JSON.parse(raw) } : DEFAULT_BANNERS;
-  } catch {
-    return DEFAULT_BANNERS;
-  }
-}
-
-export function saveBanner(key: keyof BannerSet, content: PromoBannerContent) {
-  const next = { ...getBanners(), [key]: content };
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  } catch {
-    // Storage may be full or blocked — the change still applies for this session.
-  }
-}

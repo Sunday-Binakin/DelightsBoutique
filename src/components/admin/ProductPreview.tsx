@@ -1,5 +1,5 @@
 import Link from "next/link";
-import type { Product } from "@/lib/types";
+import { BADGE_LABELS, type Product } from "@/lib/types";
 import { formatPrice } from "@/lib/format";
 import { ProductVisual } from "@/components/ui/ProductVisual";
 import { StarRating } from "@/components/ui/StarRating";
@@ -27,7 +27,9 @@ export function ProductPreview({ product, onDelete }: ProductPreviewProps) {
       <div className="mt-4">
         <p className="text-xs font-semibold uppercase tracking-widest text-primary">
           {product.category}
-          {product.badge && <span className="ml-2 text-foreground/60">• {product.badge}</span>}
+          {product.badge && (
+            <span className="ml-2 text-foreground/60">• {BADGE_LABELS[product.badge]}</span>
+          )}
         </p>
         <h3 className="mt-1 font-serif text-lg font-semibold text-foreground">{product.name}</h3>
 

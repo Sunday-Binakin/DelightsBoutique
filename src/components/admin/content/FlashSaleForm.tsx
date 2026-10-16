@@ -1,17 +1,30 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { getFlashSale, saveFlashSale, pickFlashSaleProducts, type FlashSaleContent } from "@/lib/flash-sale";
-import { logAction } from "@/lib/audit-log";
-import { getAllProducts } from "@/lib/product-store";
+import { useMarkUnsaved } from "@/lib/unsaved-changes";
+import { useFlashSaleQuery } from "@/lib/use-flash-sale";
+import { FULL_CATALOG_LIMIT, useProductsList } from "@/lib/use-products";
+import { useUpdateFlashSale } from "@/lib/use-admin-content";
+import { pickFlashSaleProducts } from "@/lib/flash-sale";
+import type { Product } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { CountdownTimer } from "@/components/ui/CountdownTimer";
 import { ProductVisual } from "@/components/ui/ProductVisual";
 import { ProductPicker } from "@/components/admin/content/ProductPicker";
+import { LoadingBlock } from "@/components/ui/Spinner";
+import { QueryError } from "@/components/ui/QueryError";
+import { useToast } from "@/components/ui/ToastProvider";
 
 const inputClasses =
-  "w-full rounded-lg border border-border-subtle bg-background px-3.5 py-2.5 text-sm outline-none focus:border-primary";
+  "w-full rounded-lg border border-input-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-primary";
 const labelClasses = "flex flex-col gap-1.5 text-sm font-medium text-foreground";
+
+interface FlashSaleDraft {
+  eyebrow: string;
+  title: string;
+  endsAt: string;
+  productSlugs: string[];
+}
 
 /** <input type="datetime-local"> works in the browser's local time, with no timezone/seconds. */
 function toDatetimeLocal(iso: string): string {
@@ -22,28 +35,88 @@ function toDatetimeLocal(iso: string): string {
 }
 
 export function FlashSaleForm() {
-  const [content, setContent] = useState<FlashSaleContent>(() => getFlashSale());
-  const [saved, setSaved] = useState(true);
-  const [products] = useState(() => getAllProducts());
+  const {
+    flashSale,
+    isLoading: loadingFlashSale,
+    isError: flashSaleErrored,
+    refetch: refetchFlashSale,
+  } = useFlashSaleQuery();
+  const {
+    products,
+    total: catalogTotal,
+    isLoading: loadingProducts,
+    isError: productsErrored,
+    refetch: refetchProducts,
+  } = useProductsList({ limit: FULL_CATALOG_LIMIT });
 
-  function update<K extends keyof FlashSaleContent>(key: K, value: FlashSaleContent[K]) {
+  if (loadingFlashSale || loadingProducts) return <LoadingBlock />;
+  if (flashSaleErrored || productsErrored) {
+    return (
+      <QueryError
+        label="the flash sale section"
+        onRetry={() => {
+          refetchFlashSale();
+          refetchProducts();
+        }}
+      />
+    );
+  }
+
+  // Auto-filled products aren't a pick; starting from them would save them as one.
+  const initialContent: FlashSaleDraft = {
+    eyebrow: flashSale.eyebrow,
+    title: flashSale.title,
+    endsAt: flashSale.endsAt,
+    productSlugs: flashSale.isCurated ? flashSale.products.map((p) => p.slug) : [],
+  };
+
+  return (
+    <FlashSaleFormInner
+      initialContent={initialContent}
+      allProducts={products}
+      catalogTotal={catalogTotal}
+    />
+  );;
+}
+
+function FlashSaleFormInner({
+  initialContent,
+  allProducts,
+  catalogTotal,
+}: {
+  initialContent: FlashSaleDraft;
+  allProducts: Product[];
+  catalogTotal: number;
+}) {
+  const [content, setContent] = useState<FlashSaleDraft>(initialContent);
+  const [saved, setSaved] = useState(true);
+  useMarkUnsaved(!saved);
+  const updateFlashSale = useUpdateFlashSale();
+  const toast = useToast();
+
+  function update<K extends keyof FlashSaleDraft>(key: K, value: FlashSaleDraft[K]) {
     setContent((prev) => ({ ...prev, [key]: value }));
     setSaved(false);
   }
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    saveFlashSale(content);
-    logAction('Updated "Flash Sale" section');
-    setSaved(true);
+    try {
+      await updateFlashSale.mutateAsync(content);
+      setSaved(true);
+      toast.success("Flash sale section saved.");
+    } catch {
+      toast.error("Couldn't save the flash sale section. Try again.");
+    }
   }
 
-  const previewProducts = pickFlashSaleProducts(products, content.productSlugs);
+  const previewProducts = pickFlashSaleProducts(allProducts, content.productSlugs);
   const endsAtMs = new Date(content.endsAt).getTime();
 
   return (
     <div className="mt-4 grid gap-8 lg:grid-cols-[1fr_320px]">
       <form onSubmit={handleSubmit} className="flex max-w-xl flex-col gap-5">
+
         <label className={labelClasses}>
           Eyebrow
           <input
@@ -77,8 +150,14 @@ export function FlashSaleForm() {
 
         <div className="flex flex-col gap-3 rounded-lg border border-border-subtle p-4">
           <p className={labelClasses}>Products in the sale</p>
+          {catalogTotal > allProducts.length && (
+            <p className="text-xs text-amber-700">
+              Showing the first {allProducts.length} of {catalogTotal} products. Products beyond
+              that can&apos;t be picked here yet.
+            </p>
+          )}
           <ProductPicker
-            products={products}
+            products={allProducts}
             selectedSlugs={content.productSlugs}
             onChange={(slugs) => update("productSlugs", slugs)}
             previewProducts={previewProducts}
@@ -86,8 +165,8 @@ export function FlashSaleForm() {
           />
         </div>
 
-        <Button type="submit" disabled={saved} className="self-start">
-          {saved ? "Saved" : "Save"}
+        <Button type="submit" disabled={saved || updateFlashSale.isPending} className="self-start">
+          {updateFlashSale.isPending ? "Saving…" : saved ? "Saved" : "Save"}
         </Button>
       </form>
 

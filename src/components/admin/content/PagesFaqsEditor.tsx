@@ -1,19 +1,28 @@
 "use client";
 
 import { useState } from "react";
-import {
-  getPagesContent,
-  saveStaticPage,
-  saveFaqs,
-  type StaticPage,
-  type FaqItem,
-} from "@/lib/pages-content";
-import { logAction } from "@/lib/audit-log";
+import { useMarkUnsaved } from "@/lib/unsaved-changes";
+import { usePage } from "@/lib/use-pages-content";
+import { useFaqs } from "@/lib/use-faqs";
+import { useUpdatePage, useCreateFaq, useUpdateFaq, useDeleteFaq } from "@/lib/use-admin-content";
+import type { PageKey } from "@/lib/api/types";
+import type { FaqDto } from "@/lib/api/types";
 import { Button } from "@/components/ui/Button";
 import { StaticPageBody } from "@/components/storefront/StaticPageBody";
+import { LoadingBlock } from "@/components/ui/Spinner";
+import { QueryError } from "@/components/ui/QueryError";
+import { useToast } from "@/components/ui/ToastProvider";
+
+const PAGE_KEYS: { key: PageKey; label: string }[] = [
+  { key: "about", label: "About Us" },
+  { key: "shipping", label: "Shipping & Delivery" },
+  { key: "returns", label: "Return Policy" },
+  { key: "terms", label: "Terms of Service" },
+  { key: "privacy", label: "Privacy Policy" },
+];
 
 const inputClasses =
-  "w-full rounded-lg border border-border-subtle bg-background px-3.5 py-2.5 text-sm outline-none focus:border-primary";
+  "w-full rounded-lg border border-input-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-primary disabled:opacity-50";
 const labelClasses = "flex flex-col gap-1.5 text-sm font-medium text-foreground";
 
 function PreviewLabel() {
@@ -24,20 +33,35 @@ function PreviewLabel() {
   );
 }
 
-function StaticPageForm({
-  pageKey,
-  page,
-}: {
-  pageKey: "about" | "shipping" | "returns" | "terms" | "privacy";
-  page: StaticPage;
-}) {
-  const [draft, setDraft] = useState<StaticPage>(page);
-  const [saved, setSaved] = useState(true);
+function StaticPageForm({ pageKey }: { pageKey: PageKey }) {
+  const { page, isLoading, isError, refetch } = usePage(pageKey);
+  if (isLoading) return <LoadingBlock />;
+  if (isError) return <QueryError label="this page" onRetry={refetch} />;
+  if (!page) return null;
+  return <StaticPageFormInner pageKey={pageKey} initialPage={page} />;
+}
 
-  function handleSave() {
-    saveStaticPage(pageKey, draft);
-    logAction(`Updated "${draft.title}" page`);
-    setSaved(true);
+function StaticPageFormInner({
+  pageKey,
+  initialPage,
+}: {
+  pageKey: PageKey;
+  initialPage: { title: string; body: string };
+}) {
+  const [draft, setDraft] = useState(initialPage);
+  const [saved, setSaved] = useState(true);
+  useMarkUnsaved(!saved);
+  const updatePage = useUpdatePage();
+  const toast = useToast();
+
+  async function handleSave() {
+    try {
+      await updatePage.mutateAsync({ key: pageKey, page: draft });
+      setSaved(true);
+      toast.success("Page saved.");
+    } catch {
+      toast.error("Couldn't save this page. Try again.");
+    }
   }
 
   return (
@@ -82,43 +106,101 @@ function StaticPageForm({
       <Button
         type="button"
         variant="outline"
-        disabled={saved}
+        disabled={saved || updatePage.isPending}
         onClick={handleSave}
         className="mt-3"
       >
-        {saved ? "Saved" : "Save Page"}
+        {updatePage.isPending ? "Saving…" : saved ? "Saved" : "Save Page"}
       </Button>
     </div>
   );
 }
 
-function FaqsEditor({ initialFaqs }: { initialFaqs: FaqItem[] }) {
-  const [faqs, setFaqs] = useState<FaqItem[]>(initialFaqs);
+function FaqRow({ faq }: { faq: FaqDto }) {
+  const [draft, setDraft] = useState({ question: faq.question, answer: faq.answer });
   const [saved, setSaved] = useState(true);
+  useMarkUnsaved(!saved);
+  const updateFaq = useUpdateFaq();
+  const deleteFaq = useDeleteFaq();
+  const toast = useToast();
 
-  function updateFaq(id: string, updates: Partial<FaqItem>) {
-    setFaqs((prev) => prev.map((f) => (f.id === id ? { ...f, ...updates } : f)));
-    setSaved(false);
+  async function handleSave() {
+    try {
+      await updateFaq.mutateAsync({ id: faq.id, body: draft });
+      setSaved(true);
+    } catch {
+      toast.error("Couldn't save this FAQ. Try again.");
+    }
   }
 
-  function removeFaq(id: string) {
-    setFaqs((prev) => prev.filter((f) => f.id !== id));
-    setSaved(false);
+  async function handleRemove() {
+    if (!confirm("Remove this FAQ? This can't be undone.")) return;
+    try {
+      await deleteFaq.mutateAsync(faq.id);
+      toast.success("FAQ removed.");
+    } catch {
+      toast.error("Couldn't remove this FAQ. Try again.");
+    }
   }
+
+  return (
+    <div className="rounded-lg border border-border-subtle p-4">
+      <div className="flex items-start justify-between gap-3">
+        <input
+          value={draft.question}
+          onChange={(e) => {
+            setDraft((prev) => ({ ...prev, question: e.target.value }));
+            setSaved(false);
+          }}
+          placeholder="Question"
+          className={`${inputClasses} font-medium`}
+        />
+        <button
+          type="button"
+          onClick={handleRemove}
+          disabled={deleteFaq.isPending}
+          className="mt-1 shrink-0 text-xs font-medium text-red-600 hover:underline disabled:opacity-50"
+        >
+          {deleteFaq.isPending ? "Removing…" : "Remove"}
+        </button>
+      </div>
+      <textarea
+        rows={2}
+        value={draft.answer}
+        onChange={(e) => {
+          setDraft((prev) => ({ ...prev, answer: e.target.value }));
+          setSaved(false);
+        }}
+        placeholder="Answer"
+        className={`${inputClasses} mt-2`}
+      />
+      <Button
+        type="button"
+        variant="outline"
+        disabled={saved || updateFaq.isPending}
+        onClick={handleSave}
+        className="mt-2"
+      >
+        {updateFaq.isPending ? "Saving…" : saved ? "Saved" : "Save"}
+      </Button>
+    </div>
+  );
+}
+
+function FaqsEditor() {
+  const { faqs, isLoading, isError, refetch } = useFaqs();
+  const createFaq = useCreateFaq();
+  const toast = useToast();
 
   function addFaq() {
-    setFaqs((prev) => [
-      ...prev,
-      { id: `faq-${Date.now().toString(36)}`, question: "", answer: "" },
-    ]);
-    setSaved(false);
+    createFaq.mutate(
+      { question: "", answer: "" },
+      { onError: () => toast.error("Couldn't add a new FAQ. Try again.") },
+    );
   }
 
-  function handleSave() {
-    saveFaqs(faqs);
-    logAction("Updated FAQs");
-    setSaved(true);
-  }
+  if (isLoading) return <LoadingBlock />;
+  if (isError) return <QueryError label="FAQs" onRetry={refetch} />;
 
   return (
     <div className="rounded-xl border border-border-subtle p-5">
@@ -127,49 +209,17 @@ function FaqsEditor({ initialFaqs }: { initialFaqs: FaqItem[] }) {
       <div className="mt-3 grid gap-5 lg:grid-cols-[1fr_320px]">
         <div className="flex flex-col gap-4">
           {faqs.map((faq) => (
-            <div key={faq.id} className="rounded-lg border border-border-subtle p-4">
-              <div className="flex items-start justify-between gap-3">
-                <input
-                  value={faq.question}
-                  onChange={(e) => updateFaq(faq.id, { question: e.target.value })}
-                  placeholder="Question"
-                  className={`${inputClasses} font-medium`}
-                />
-                <button
-                  type="button"
-                  onClick={() => removeFaq(faq.id)}
-                  className="mt-1 shrink-0 text-xs font-medium text-red-600 hover:underline"
-                >
-                  Remove
-                </button>
-              </div>
-              <textarea
-                rows={2}
-                value={faq.answer}
-                onChange={(e) => updateFaq(faq.id, { answer: e.target.value })}
-                placeholder="Answer"
-                className={`${inputClasses} mt-2`}
-              />
-            </div>
+            <FaqRow key={faq.id} faq={faq} />
           ))}
 
           <button
             type="button"
             onClick={addFaq}
-            className="self-start text-sm font-medium text-primary hover:underline"
+            disabled={createFaq.isPending}
+            className="self-start text-sm font-medium text-primary hover:underline disabled:opacity-50"
           >
-            + Add FAQ
+            {createFaq.isPending ? "Adding…" : "+ Add FAQ"}
           </button>
-
-          <Button
-            type="button"
-            variant="outline"
-            disabled={saved}
-            onClick={handleSave}
-            className="self-start"
-          >
-            {saved ? "Saved" : "Save FAQs"}
-          </Button>
         </div>
 
         <div>
@@ -198,16 +248,12 @@ function FaqsEditor({ initialFaqs }: { initialFaqs: FaqItem[] }) {
 }
 
 export function PagesFaqsEditor() {
-  const content = getPagesContent();
-
   return (
     <div className="mt-4 flex flex-col gap-5">
-      <StaticPageForm pageKey="about" page={content.about} />
-      <StaticPageForm pageKey="shipping" page={content.shipping} />
-      <StaticPageForm pageKey="returns" page={content.returns} />
-      <StaticPageForm pageKey="terms" page={content.terms} />
-      <StaticPageForm pageKey="privacy" page={content.privacy} />
-      <FaqsEditor initialFaqs={content.faqs} />
+      {PAGE_KEYS.map(({ key }) => (
+        <StaticPageForm key={key} pageKey={key} />
+      ))}
+      <FaqsEditor />
     </div>
   );
 }

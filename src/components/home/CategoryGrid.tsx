@@ -2,14 +2,12 @@
 
 import Link from "next/link";
 import { useCategories } from "@/lib/use-categories";
-import { useProducts } from "@/lib/use-products";
 import { useStorefrontCopy } from "@/lib/use-storefront-copy";
 import { MediaSwatch } from "@/components/ui/MediaSwatch";
 import { getCategoryArt } from "@/components/ui/category-art";
 
 export function CategoryGrid() {
   const categories = useCategories();
-  const products = useProducts();
   const copy = useStorefrontCopy();
 
   return (
@@ -37,9 +35,6 @@ export function CategoryGrid() {
               className="aspect-square w-full rounded-full transition-transform group-hover:scale-[1.03]"
             />
             <p className="mt-2 text-sm font-medium text-foreground/80">{category.name}</p>
-            <p className="text-xs text-muted-foreground">
-              {products.filter((p) => p.categorySlug === category.slug).length} Products
-            </p>
           </Link>
         ))}
       </div>

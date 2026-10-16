@@ -1,11 +1,12 @@
+import { memo } from "react";
 import Link from "next/link";
-import type { Product } from "@/lib/types";
+import { BADGE_LABELS, type Product } from "@/lib/types";
 import { ProductVisual } from "@/components/ui/ProductVisual";
 import { StarRating } from "@/components/ui/StarRating";
 import { WishlistButton } from "@/components/ui/WishlistButton";
 import { formatPrice } from "@/lib/format";
 
-export function ProductCard({ product }: { product: Product }) {
+export const ProductCard = memo(function ProductCard({ product }: { product: Product }) {
   return (
     <Link href={`/product/${product.slug}`} className="group block">
       <div className="relative">
@@ -15,7 +16,7 @@ export function ProductCard({ product }: { product: Product }) {
         />
         {product.badge && (
           <span className="absolute left-3 top-3 rounded-full bg-background px-2.5 py-1 text-xs font-semibold text-foreground shadow">
-            {product.badge}
+            {BADGE_LABELS[product.badge]}
           </span>
         )}
         <div className="absolute right-3 top-3">
@@ -43,4 +44,4 @@ export function ProductCard({ product }: { product: Product }) {
       </div>
     </Link>
   );
-}
+});

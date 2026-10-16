@@ -1,19 +1,17 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import {
-  getStorefrontCopy,
-  saveStorefrontCopy,
-  type StorefrontCopy,
-  type TrustBadgeCopy,
-} from "@/lib/storefront-copy";
-import { getSubscribers } from "@/lib/newsletter";
-import { logAction } from "@/lib/audit-log";
+import { useMarkUnsaved } from "@/lib/unsaved-changes";
+import { type StorefrontCopy, type TrustBadgeCopy } from "@/lib/storefront-copy";
+import { useStorefrontCopy } from "@/lib/use-storefront-copy";
+import { useNewsletterSubscriberCount } from "@/lib/newsletter";
+import { useUpdateStorefrontCopy } from "@/lib/use-admin-content";
+import { useToast } from "@/components/ui/ToastProvider";
 import { Button } from "@/components/ui/Button";
 import { QuestionIcon, WhatsAppIcon, TruckIcon, MailIcon } from "@/components/ui/icons";
 
 const inputClasses =
-  "w-full rounded-lg border border-border-subtle bg-background px-3.5 py-2.5 text-sm outline-none focus:border-primary";
+  "w-full rounded-lg border border-input-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-primary";
 const labelClasses = "flex flex-col gap-1.5 text-sm font-medium text-foreground";
 
 function PreviewLabel() {
@@ -36,25 +34,34 @@ function PreviewBox({ children }: { children: ReactNode }) {
 interface SectionProps<T> {
   title: string;
   value: T;
-  onSave: (value: T) => void;
-  logMessage: string;
+  onSave: (value: T) => Promise<unknown>;
   preview: (draft: T) => ReactNode;
   children: (draft: T, update: (updates: Partial<T>) => void) => ReactNode;
 }
 
-function CopySection<T>({ title, value, onSave, logMessage, preview, children }: SectionProps<T>) {
+function CopySection<T>({ title, value, onSave, preview, children }: SectionProps<T>) {
   const [draft, setDraft] = useState<T>(value);
   const [saved, setSaved] = useState(true);
+  useMarkUnsaved(!saved);
+  const [saving, setSaving] = useState(false);
+  const toast = useToast();
 
   function update(updates: Partial<T>) {
     setDraft((prev) => ({ ...prev, ...updates }));
     setSaved(false);
   }
 
-  function handleSave() {
-    onSave(draft);
-    logAction(logMessage);
-    setSaved(true);
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await onSave(draft);
+      setSaved(true);
+      toast.success(`${title} saved.`);
+    } catch {
+      toast.error(`Couldn't save ${title}. Try again.`);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -64,8 +71,14 @@ function CopySection<T>({ title, value, onSave, logMessage, preview, children }:
         <div className="flex flex-col gap-3">{children(draft, update)}</div>
         <PreviewBox>{preview(draft)}</PreviewBox>
       </div>
-      <Button type="button" variant="outline" disabled={saved} onClick={handleSave} className="mt-4">
-        {saved ? "Saved" : "Save"}
+      <Button
+        type="button"
+        variant="outline"
+        disabled={saved || saving}
+        onClick={handleSave}
+        className="mt-4"
+      >
+        {saving ? "Saving…" : saved ? "Saved" : "Save"}
       </Button>
     </div>
   );
@@ -76,11 +89,27 @@ function TrustBadgesSection({
   onSave,
 }: {
   badges: StorefrontCopy["trustBadges"];
-  onSave: (badges: StorefrontCopy["trustBadges"]) => void;
+  onSave: (badges: StorefrontCopy["trustBadges"]) => Promise<unknown>;
 }) {
   const [draft, setDraft] = useState(badges);
   const [saved, setSaved] = useState(true);
+  useMarkUnsaved(!saved);
+  const [saving, setSaving] = useState(false);
   const icons = [QuestionIcon, WhatsAppIcon, TruckIcon];
+  const toast = useToast();
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await onSave(draft);
+      setSaved(true);
+      toast.success("Trust badges saved.");
+    } catch {
+      toast.error("Couldn't save trust badges. Try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   function updateBadge(index: number, updates: Partial<TrustBadgeCopy>) {
     setDraft((prev) => {
@@ -142,27 +171,23 @@ function TrustBadgesSection({
       <Button
         type="button"
         variant="outline"
-        disabled={saved}
-        onClick={() => {
-          onSave(draft);
-          logAction("Updated trust badges");
-          setSaved(true);
-        }}
+        disabled={saved || saving}
+        onClick={handleSave}
         className="mt-4"
       >
-        {saved ? "Saved" : "Save"}
+        {saving ? "Saving…" : saved ? "Saved" : "Save"}
       </Button>
     </div>
   );
 }
 
 export function StorefrontCopyForm() {
-  const [copy, setCopy] = useState<StorefrontCopy>(() => getStorefrontCopy());
-  const [subscriberCount] = useState(() => getSubscribers().length);
+  const copy = useStorefrontCopy();
+  const updateStorefrontCopy = useUpdateStorefrontCopy();
+  const { total: subscriberCount, isError: subscribersErrored } = useNewsletterSubscriberCount();
 
   function persist(updates: Partial<StorefrontCopy>) {
-    saveStorefrontCopy(updates);
-    setCopy((prev) => ({ ...prev, ...updates }));
+    return updateStorefrontCopy.mutateAsync({ ...copy, ...updates });
   }
 
   return (
@@ -176,7 +201,6 @@ export function StorefrontCopyForm() {
         title="Contact Page"
         value={{ contactHeading: copy.contactHeading, contactSubtext: copy.contactSubtext }}
         onSave={persist}
-        logMessage="Updated contact page copy"
         preview={(draft) => (
           <div className="text-center">
             <p className="font-serif text-lg font-semibold text-foreground">
@@ -218,7 +242,6 @@ export function StorefrontCopyForm() {
           wholesaleWhatsappMessage: copy.wholesaleWhatsappMessage,
         }}
         onSave={persist}
-        logMessage="Updated wholesale page copy"
         preview={(draft) => (
           <div>
             <p className="font-serif text-sm font-semibold text-foreground">
@@ -264,7 +287,6 @@ export function StorefrontCopyForm() {
         title="New Arrivals Page"
         value={{ newArrivalsTitle: copy.newArrivalsTitle, newArrivalsSubtitle: copy.newArrivalsSubtitle }}
         onSave={persist}
-        logMessage="Updated New Arrivals page copy"
         preview={(draft) => (
           <div>
             <p className="font-serif text-lg font-semibold text-foreground">
@@ -303,7 +325,6 @@ export function StorefrontCopyForm() {
         title="Best Sellers Page"
         value={{ bestSellersTitle: copy.bestSellersTitle, bestSellersSubtitle: copy.bestSellersSubtitle }}
         onSave={persist}
-        logMessage="Updated Best Sellers page copy"
         preview={(draft) => (
           <div>
             <p className="font-serif text-lg font-semibold text-foreground">
@@ -346,7 +367,6 @@ export function StorefrontCopyForm() {
           newsletterSuccessMessage: copy.newsletterSuccessMessage,
         }}
         onSave={persist}
-        logMessage="Updated newsletter signup copy"
         preview={(draft) => (
           <div className="rounded-lg bg-primary/10 p-3 text-center">
             <MailIcon className="mx-auto h-5 w-5 text-primary" />
@@ -365,7 +385,9 @@ export function StorefrontCopyForm() {
         {(draft, update) => (
           <>
             <p className="text-xs text-muted-foreground">
-              {subscriberCount} subscriber{subscriberCount === 1 ? "" : "s"} so far.
+              {subscribersErrored
+                ? "Subscriber count unavailable."
+                : `${subscriberCount} subscriber${subscriberCount === 1 ? "" : "s"} so far.`}
             </p>
             <label className={labelClasses}>
               Heading
@@ -400,7 +422,6 @@ export function StorefrontCopyForm() {
         title="Cart & Checkout Disclaimers"
         value={{ cartDisclaimer: copy.cartDisclaimer, checkoutDisclaimer: copy.checkoutDisclaimer }}
         onSave={persist}
-        logMessage="Updated cart & checkout disclaimers"
         preview={(draft) => (
           <div className="flex flex-col gap-3">
             <div className="rounded-lg border border-border-subtle p-3">
@@ -442,7 +463,6 @@ export function StorefrontCopyForm() {
         title="Track My Order Page"
         value={{ trackOrderHeading: copy.trackOrderHeading, trackOrderSubtext: copy.trackOrderSubtext }}
         onSave={persist}
-        logMessage="Updated Track My Order page copy"
         preview={(draft) => (
           <div className="text-center">
             <p className="font-serif text-base font-semibold text-foreground">
@@ -484,7 +504,6 @@ export function StorefrontCopyForm() {
           categoryGridTitle: copy.categoryGridTitle,
         }}
         onSave={persist}
-        logMessage="Updated homepage category grid heading"
         preview={(draft) => (
           <div className="text-center">
             <span className="text-[11px] font-semibold uppercase tracking-widest text-primary">

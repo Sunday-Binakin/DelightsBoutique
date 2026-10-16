@@ -1,16 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { DEFAULT_STOREFRONT_COPY, getStorefrontCopy, type StorefrontCopy } from "@/lib/storefront-copy";
+import { useQuery } from "@tanstack/react-query";
+import { getStorefrontCopy as fetchStorefrontCopy } from "@/lib/api/content";
+import { DEFAULT_STOREFRONT_COPY, type StorefrontCopy } from "@/lib/storefront-copy";
 
-/** Live storefront copy — see use-products.ts for the same pattern. */
+/** Live storefront copy. The backend stores/returns this shape verbatim — merge over
+ * the defaults so a partially-filled record (or none yet) still renders every field. */
 export function useStorefrontCopy(): StorefrontCopy {
-  const [copy, setCopy] = useState<StorefrontCopy>(DEFAULT_STOREFRONT_COPY);
+  const query = useQuery({
+    queryKey: ["storefront-copy"],
+    queryFn: fetchStorefrontCopy,
+  });
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration from localStorage
-    setCopy(getStorefrontCopy());
-  }, []);
-
-  return copy;
+  return query.data
+    ? { ...DEFAULT_STOREFRONT_COPY, ...(query.data as Partial<StorefrontCopy>) }
+    : DEFAULT_STOREFRONT_COPY;
 }

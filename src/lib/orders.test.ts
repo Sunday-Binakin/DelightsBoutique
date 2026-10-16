@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { createOrder, getOrdersByPhone, getStatusOptions, normalizePhone } from "@/lib/orders";
+import { getStatusOptions, normalizePhone } from "@/lib/orders";
 
 beforeEach(() => {
   localStorage.clear();
@@ -25,72 +25,23 @@ describe("normalizePhone", () => {
 
 describe("getStatusOptions", () => {
   it("includes 'Out for Delivery' but not 'Ready for Pickup' for a delivery order", () => {
-    const options = getStatusOptions("Delivery");
-    expect(options).toContain("Out for Delivery");
-    expect(options).not.toContain("Ready for Pickup");
+    const options = getStatusOptions("delivery");
+    expect(options).toContain("outForDelivery");
+    expect(options).not.toContain("readyForPickup");
   });
 
   it("includes 'Ready for Pickup' but not 'Out for Delivery' for a pickup order", () => {
-    const options = getStatusOptions("Pickup");
-    expect(options).toContain("Ready for Pickup");
-    expect(options).not.toContain("Out for Delivery");
+    const options = getStatusOptions("pickup");
+    expect(options).toContain("readyForPickup");
+    expect(options).not.toContain("outForDelivery");
   });
 
   it("always includes the terminal statuses regardless of fulfillment method", () => {
-    for (const fulfillment of ["Delivery", "Pickup"] as const) {
+    for (const fulfillment of ["delivery", "pickup"] as const) {
       const options = getStatusOptions(fulfillment);
-      expect(options).toContain("Completed");
-      expect(options).toContain("Cancelled");
-      expect(options).toContain("Pending Confirmation");
+      expect(options).toContain("completed");
+      expect(options).toContain("cancelled");
+      expect(options).toContain("pendingConfirmation");
     }
-  });
-});
-
-describe("createOrder + getOrdersByPhone", () => {
-  it("finds a newly created order by the exact phone number used at checkout", () => {
-    const order = createOrder({
-      items: [{ slug: "test-product", name: "Test Product", quantity: 1, unitPrice: 100 }],
-      subtotal: 100,
-      customerName: "Test Customer",
-      phone: "024 999 8877",
-      fulfillment: "Pickup",
-      paymentMethod: "Cash on Delivery/Pickup",
-    });
-
-    const found = getOrdersByPhone("024 999 8877");
-    expect(found.map((o) => o.id)).toContain(order.id);
-  });
-
-  it("finds the same order looked up in the alternate (international) phone format", () => {
-    createOrder({
-      items: [{ slug: "test-product", name: "Test Product", quantity: 1, unitPrice: 100 }],
-      subtotal: 100,
-      customerName: "Test Customer",
-      phone: "024 999 8877",
-      fulfillment: "Pickup",
-      paymentMethod: "Cash on Delivery/Pickup",
-    });
-
-    const found = getOrdersByPhone("+233 24 999 8877");
-    expect(found).toHaveLength(1);
-    expect(found[0].customerName).toBe("Test Customer");
-  });
-
-  it("returns an empty array for a phone number with no orders", () => {
-    expect(getOrdersByPhone("020 000 0000")).toEqual([]);
-  });
-
-  it("sets a new order's status to Pending Confirmation", () => {
-    const order = createOrder({
-      items: [{ slug: "test-product", name: "Test Product", quantity: 1, unitPrice: 50 }],
-      subtotal: 50,
-      customerName: "Another Customer",
-      phone: "055 111 2222",
-      fulfillment: "Delivery",
-      address: "Test Street",
-      paymentMethod: "Mobile Money",
-    });
-
-    expect(order.status).toBe("Pending Confirmation");
   });
 });

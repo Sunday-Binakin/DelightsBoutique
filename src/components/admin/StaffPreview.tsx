@@ -3,21 +3,24 @@
 import { useState } from "react";
 import {
   STAFF_PERMISSIONS,
-  resetStaffPassword,
-  updateStaff,
+  STAFF_PERMISSION_LABELS,
   type StaffMember,
   type StaffPermission,
 } from "@/lib/staff";
-import { logAction } from "@/lib/audit-log";
+import { useUpdateStaff, useResetStaffPassword } from "@/lib/use-admin-staff";
+import { ApiError } from "@/lib/api/client";
+import { useToast } from "@/components/ui/ToastProvider";
 import { Button } from "@/components/ui/Button";
 
 interface StaffPreviewProps {
   staff: StaffMember | null;
-  onUpdate: () => void;
 }
 
-export function StaffPreview({ staff, onUpdate }: StaffPreviewProps) {
+export function StaffPreview({ staff }: StaffPreviewProps) {
   const [newPassword, setNewPassword] = useState<string | null>(null);
+  const updateStaff = useUpdateStaff();
+  const resetPassword = useResetStaffPassword();
+  const toast = useToast();
 
   if (!staff) {
     return (
@@ -28,29 +31,36 @@ export function StaffPreview({ staff, onUpdate }: StaffPreviewProps) {
   }
 
   const staffId = staff.id;
-  const staffName = staff.name;
 
-  function togglePermission(permission: StaffPermission) {
+  async function togglePermission(permission: StaffPermission) {
     const next = staff!.permissions.includes(permission)
       ? staff!.permissions.filter((p) => p !== permission)
       : [...staff!.permissions, permission];
-    updateStaff(staffId, { permissions: next });
-    logAction(`Updated permissions for "${staffName}"`);
-    onUpdate();
+    try {
+      await updateStaff.mutateAsync({ id: staffId, body: { permissions: next } });
+      toast.success("Permissions updated.");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Couldn't save — try again.");
+    }
   }
 
-  function handleToggleActive() {
+  async function handleToggleActive() {
     const nextActive = !staff!.active;
-    updateStaff(staffId, { active: nextActive });
-    logAction(`${nextActive ? "Reactivated" : "Deactivated"} staff member "${staffName}"`);
-    onUpdate();
+    try {
+      await updateStaff.mutateAsync({ id: staffId, body: { active: nextActive } });
+      toast.success(nextActive ? "Staff member reactivated." : "Staff member deactivated.");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Couldn't save — try again.");
+    }
   }
 
-  function handleResetPassword() {
-    const password = resetStaffPassword(staffId);
-    if (password) {
-      logAction(`Reset password for "${staffName}"`);
+  async function handleResetPassword() {
+    setNewPassword(null);
+    try {
+      const { password } = await resetPassword.mutateAsync(staffId);
       setNewPassword(password);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Couldn't reset the password — try again.");
     }
   }
 
@@ -79,10 +89,11 @@ export function StaffPreview({ staff, onUpdate }: StaffPreviewProps) {
               key={permission}
               className="flex items-center justify-between rounded-lg border border-border-subtle px-3 py-2 text-sm"
             >
-              {permission}
+              {STAFF_PERMISSION_LABELS[permission]}
               <input
                 type="checkbox"
                 checked={staff.permissions.includes(permission)}
+                disabled={updateStaff.isPending}
                 onChange={() => togglePermission(permission)}
                 className="h-4 w-4 accent-primary"
               />
@@ -95,19 +106,25 @@ export function StaffPreview({ staff, onUpdate }: StaffPreviewProps) {
         <Button
           variant={staff.active ? "danger" : "primary"}
           className="flex-1"
+          disabled={updateStaff.isPending}
           onClick={handleToggleActive}
         >
           {staff.active ? "Deactivate" : "Reactivate"}
         </Button>
-        <Button variant="primary" className="flex-1" onClick={handleResetPassword}>
-          Reset Password
+        <Button
+          variant="primary"
+          className="flex-1"
+          disabled={resetPassword.isPending}
+          onClick={handleResetPassword}
+        >
+          {resetPassword.isPending ? "Resetting…" : "Reset Password"}
         </Button>
       </div>
 
       {newPassword && (
         <div className="mt-3 rounded-lg bg-amber-50 px-3.5 py-2.5 text-sm text-amber-800">
-          New temporary password: <strong>{newPassword}</strong> — share this with {staff.name}
-          directly. It won&apos;t be shown again.
+          New temporary password: <strong>{newPassword}</strong> — copy this now and share it with{" "}
+          {staff.name} directly. It won&apos;t be shown again.
         </div>
       )}
     </div>

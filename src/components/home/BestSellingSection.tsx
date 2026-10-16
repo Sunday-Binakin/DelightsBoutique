@@ -1,22 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { useProducts } from "@/lib/use-products";
 import { useCollectionSection } from "@/lib/use-collection-section";
-import { pickCollectionTabProducts } from "@/lib/collection-section";
 import { Tabs } from "@/components/ui/Tabs";
 import { ProductGridSection } from "@/components/home/ProductGridSection";
 
 export function BestSellingSection() {
-  const products = useProducts();
   const content = useCollectionSection();
   const [activeIndex, setActiveIndex] = useState<0 | 1 | 2>(0);
 
   const tabs = [content.newArrivalsLabel, content.bestSellersLabel, content.wholesalePicksLabel];
-  const curatedSlugs = [content.newArrivalsSlugs, content.bestSellersSlugs, content.wholesalePicksSlugs][
-    activeIndex
-  ];
-  const visible = pickCollectionTabProducts(products, curatedSlugs, activeIndex);
+  const visible = [content.newArrivals, content.bestSellers, content.wholesalePicks][activeIndex];
 
   return (
     <ProductGridSection
@@ -32,7 +26,7 @@ export function BestSellingSection() {
           }}
         />
       }
-      products={visible.length ? visible : products.slice(0, 4)}
+      products={visible}
     />
   );
 }

@@ -1,35 +1,40 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { getOrder, type Order } from "@/lib/orders";
+import { useQuery } from "@tanstack/react-query";
+import { getOrderById, toOrder } from "@/lib/api/orders";
+import { isNotFoundError, shouldRetryQuery } from "@/lib/api/client";
+import { PAYMENT_METHOD_LABELS } from "@/lib/orders";
 import { useSiteSettings } from "@/lib/use-site-settings";
 import { buildWhatsAppLink } from "@/lib/site-settings";
 import { OrderItemsSummary } from "@/components/cart/OrderItemsSummary";
 import { OrderStatusBadge } from "@/components/ui/OrderStatusBadge";
 import { LinkButton } from "@/components/ui/Button";
 import { WhatsAppIcon } from "@/components/ui/icons";
+import { LoadingBlock } from "@/components/ui/Spinner";
+import { QueryError } from "@/components/ui/QueryError";
 
 export default function OrderConfirmationPage() {
   const { id } = useParams<{ id: string }>();
-  const [order, setOrder] = useState<Order | null | undefined>(undefined);
   const settings = useSiteSettings();
 
-  useEffect(() => {
-    // Orders live in localStorage, unreadable during SSR — look the order
-    // up after mount rather than during render.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setOrder(getOrder(id) ?? null);
-  }, [id]);
+  const { data, isLoading, isError, error, refetch } = useQuery({
+    queryKey: ["order", id],
+    queryFn: () => getOrderById(id),
+    retry: shouldRetryQuery,
+  });
+  const order = data ? toOrder(data) : undefined;
+  const notFound = isNotFoundError(error);
 
-  if (order === undefined) return null;
+  if (isLoading) return <LoadingBlock />;
+  if (isError && !notFound) return <QueryError label="this order" onRetry={refetch} />;
 
-  if (order === null) {
+  if (!order) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-20 text-center">
         <h1 className="font-serif text-2xl font-semibold text-foreground">Order not found</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          We couldn&apos;t find that order on this device.
+          We couldn&apos;t find an order with that id.
         </p>
         <LinkButton href="/" className="mt-6">
           Back to Home
@@ -50,7 +55,7 @@ export default function OrderConfirmationPage() {
         <p className="mt-2 text-sm text-muted-foreground">
           Your order has been received and is <strong>Pending Confirmation</strong>. We&apos;ll
           reach out on WhatsApp or by phone to confirm payment and{" "}
-          {order.fulfillment === "Delivery" ? "delivery" : "pickup"} details.
+          {order.fulfillment === "delivery" ? "delivery" : "pickup"} details.
         </p>
       </div>
 
@@ -69,15 +74,15 @@ export default function OrderConfirmationPage() {
         <dl className="mt-5 space-y-1.5 border-t border-border-subtle pt-4 text-sm">
           <div className="flex justify-between">
             <dt className="text-muted-foreground">
-              {order.fulfillment === "Delivery" ? "Delivery Address" : "Fulfillment"}
+              {order.fulfillment === "delivery" ? "Delivery Address" : "Fulfillment"}
             </dt>
             <dd className="text-right text-foreground">
-              {order.fulfillment === "Delivery" ? order.address : "Pickup in store"}
+              {order.fulfillment === "delivery" ? order.address : "Pickup in store"}
             </dd>
           </div>
           <div className="flex justify-between">
             <dt className="text-muted-foreground">Payment Method</dt>
-            <dd className="text-foreground">{order.paymentMethod}</dd>
+            <dd className="text-foreground">{PAYMENT_METHOD_LABELS[order.paymentMethod]}</dd>
           </div>
           <div className="flex justify-between">
             <dt className="text-muted-foreground">Phone</dt>

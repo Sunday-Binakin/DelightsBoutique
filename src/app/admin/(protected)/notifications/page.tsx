@@ -1,16 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { useNotifications } from "@/lib/use-notifications";
-import { markAsRead, markAllAsRead } from "@/lib/notifications";
+import {
+  useNotificationsQuery,
+  useUnreadCount,
+  useMarkNotificationRead,
+  useMarkAllNotificationsRead,
+} from "@/lib/use-admin-notifications";
 import { formatPrice, timeAgo } from "@/lib/format";
 import { Breadcrumb } from "@/components/admin/Breadcrumb";
 import { Button } from "@/components/ui/Button";
 import { BellIcon } from "@/components/ui/icons";
+import { LoadingBlock } from "@/components/ui/Spinner";
+import { QueryError } from "@/components/ui/QueryError";
+import { useToast } from "@/components/ui/ToastProvider";
 
 export default function AdminNotificationsPage() {
-  const [notifications, refresh] = useNotifications();
-  const unread = notifications.filter((n) => !n.read).length;
+  const { notifications, isLoading, isError, refetch } = useNotificationsQuery();
+  const toast = useToast();
+  const unread = useUnreadCount();
+  const markRead = useMarkNotificationRead();
+  const markAllRead = useMarkAllNotificationsRead();
 
   return (
     <div>
@@ -28,17 +38,22 @@ export default function AdminNotificationsPage() {
           <Button
             type="button"
             variant="outline"
-            onClick={() => {
-              markAllAsRead();
-              refresh();
-            }}
+            onClick={() =>
+              markAllRead.mutate(undefined, {
+                onError: () => toast.error("Couldn't mark notifications as read. Try again."),
+              })
+            }
           >
             Mark all read
           </Button>
         )}
       </div>
 
-      {notifications.length === 0 ? (
+      {isLoading ? (
+        <LoadingBlock />
+      ) : isError ? (
+        <QueryError label="notifications" onRetry={refetch} />
+      ) : notifications.length === 0 ? (
         <div className="mt-10 flex flex-col items-center justify-center rounded-xl border border-dashed border-border-subtle py-20 text-center">
           <BellIcon className="h-8 w-8 text-muted-foreground" />
           <p className="mt-3 text-sm text-muted-foreground">
@@ -51,10 +66,7 @@ export default function AdminNotificationsPage() {
             <Link
               key={n.id}
               href={`/admin/orders?highlight=${n.orderId}`}
-              onClick={() => {
-                markAsRead(n.id);
-                refresh();
-              }}
+              onClick={() => markRead.mutate(n.id)}
               className={`flex items-center justify-between gap-4 border-b border-border-subtle px-5 py-4 transition-colors last:border-0 hover:bg-muted/60 ${
                 n.read ? "" : "bg-primary/5"
               }`}

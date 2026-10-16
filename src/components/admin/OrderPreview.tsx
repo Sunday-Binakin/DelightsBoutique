@@ -1,23 +1,43 @@
 "use client";
 
-import { useState } from "react";
-import { getStatusOptions, updateOrder, type Order, type OrderStatus } from "@/lib/orders";
-import { logAction } from "@/lib/audit-log";
+import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  getStatusOptions,
+  ORDER_STATUS_LABELS,
+  PAYMENT_METHOD_LABELS,
+  type Order,
+  type OrderStatus,
+} from "@/lib/orders";
+import { useUpdateOrderStatus } from "@/lib/use-admin-orders";
+import { ApiError } from "@/lib/api/client";
+import { useToast } from "@/components/ui/ToastProvider";
 import { OrderItemsSummary } from "@/components/cart/OrderItemsSummary";
 import { OrderStatusBadge } from "@/components/ui/OrderStatusBadge";
 import { Button } from "@/components/ui/Button";
 
 const selectClasses =
-  "w-full rounded-lg border border-border-subtle bg-background px-3 py-2 text-sm outline-none focus:border-primary";
+  "w-full rounded-lg border border-input-border bg-background px-3 py-2 text-sm outline-none focus:border-primary disabled:opacity-50";
 
 interface OrderPreviewProps {
   order: Order | null;
-  onUpdate: () => void;
 }
 
-export function OrderPreview({ order, onUpdate }: OrderPreviewProps) {
+export function OrderPreview({ order }: OrderPreviewProps) {
   const [internalNotes, setInternalNotes] = useState(order?.internalNotes ?? "");
   const [notesSaved, setNotesSaved] = useState(true);
+  const [error, setError] = useState("");
+  const updateOrder = useUpdateOrderStatus();
+  const queryClient = useQueryClient();
+  const toast = useToast();
+
+  // Resync the notes draft whenever the selected order (or its server data after a
+  // refetch) changes — e.g. after a 409 pulls in the latest version.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resyncing local draft from an external prop change, not derived render state
+    setInternalNotes(order?.internalNotes ?? "");
+    setNotesSaved(true);
+  }, [order?.id, order?.internalNotes]);
 
   if (!order) {
     return (
@@ -29,17 +49,35 @@ export function OrderPreview({ order, onUpdate }: OrderPreviewProps) {
 
   const orderId = order.id;
 
-  function handleStatusChange(status: OrderStatus) {
-    updateOrder(orderId, { status });
-    logAction(`Changed order ${orderId} status to "${status}"`);
-    onUpdate();
+  async function handleUpdate(body: { status?: OrderStatus; internalNotes?: string }) {
+    setError("");
+    try {
+      await updateOrder.mutateAsync({ id: orderId, body });
+      return true;
+    } catch (err) {
+      if (err instanceof ApiError && err.code === "CONFLICT") {
+        setError("This order changed elsewhere since you loaded it — refreshed with the latest version. Please try again.");
+        queryClient.invalidateQueries({ queryKey: ["admin-orders"] });
+      } else if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError("Something went wrong. Please try again.");
+      }
+      return false;
+    }
   }
 
-  function handleSaveNotes() {
-    updateOrder(orderId, { internalNotes });
-    logAction(`Added internal note to order ${orderId}`);
-    setNotesSaved(true);
-    onUpdate();
+  async function handleStatusChange(status: OrderStatus) {
+    const ok = await handleUpdate({ status });
+    if (ok) toast.success(`Status changed to "${ORDER_STATUS_LABELS[status]}".`);
+  }
+
+  async function handleSaveNotes() {
+    const ok = await handleUpdate({ internalNotes });
+    if (ok) {
+      setNotesSaved(true);
+      toast.success("Notes saved.");
+    }
   }
 
   return (
@@ -51,6 +89,10 @@ export function OrderPreview({ order, onUpdate }: OrderPreviewProps) {
       <p className="mt-1 text-xs text-muted-foreground">
         {new Date(order.createdAt).toLocaleString()}
       </p>
+
+      {error && (
+        <p role="alert" className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>
+      )}
 
       <div className="mt-4">
         <OrderItemsSummary items={order.items} />
@@ -71,15 +113,15 @@ export function OrderPreview({ order, onUpdate }: OrderPreviewProps) {
         </div>
         <div className="flex justify-between gap-3">
           <dt className="text-muted-foreground">
-            {order.fulfillment === "Delivery" ? "Delivery Address" : "Fulfillment"}
+            {order.fulfillment === "delivery" ? "Delivery Address" : "Fulfillment"}
           </dt>
           <dd className="text-right text-foreground">
-            {order.fulfillment === "Delivery" ? order.address : "Pickup in store"}
+            {order.fulfillment === "delivery" ? order.address : "Pickup in store"}
           </dd>
         </div>
         <div className="flex justify-between gap-3">
           <dt className="text-muted-foreground">Payment</dt>
-          <dd className="text-foreground">{order.paymentMethod}</dd>
+          <dd className="text-foreground">{PAYMENT_METHOD_LABELS[order.paymentMethod]}</dd>
         </div>
       </dl>
 
@@ -98,12 +140,13 @@ export function OrderPreview({ order, onUpdate }: OrderPreviewProps) {
         </label>
         <select
           value={order.status}
+          disabled={updateOrder.isPending}
           onChange={(e) => handleStatusChange(e.target.value as OrderStatus)}
           className={`mt-1.5 ${selectClasses}`}
         >
           {getStatusOptions(order.fulfillment).map((status) => (
             <option key={status} value={status}>
-              {status}
+              {ORDER_STATUS_LABELS[status]}
             </option>
           ))}
         </select>
@@ -115,6 +158,7 @@ export function OrderPreview({ order, onUpdate }: OrderPreviewProps) {
         </label>
         <textarea
           rows={3}
+          disabled={updateOrder.isPending}
           value={internalNotes}
           onChange={(e) => {
             setInternalNotes(e.target.value);
@@ -127,10 +171,10 @@ export function OrderPreview({ order, onUpdate }: OrderPreviewProps) {
           type="button"
           variant="outline"
           className="mt-2 w-full"
-          disabled={notesSaved}
+          disabled={notesSaved || updateOrder.isPending}
           onClick={handleSaveNotes}
         >
-          {notesSaved ? "Saved" : "Save Notes"}
+          {updateOrder.isPending ? "Saving…" : notesSaved ? "Saved" : "Save Notes"}
         </Button>
       </div>
     </div>

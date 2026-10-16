@@ -1,17 +1,22 @@
 "use client";
 
 import type { CustomerSummary } from "@/lib/customers";
-import { getCustomerOrders, setWholesaleCustomer } from "@/lib/customers";
-import { logAction } from "@/lib/audit-log";
+import { useCustomerOrders, useUpdateCustomerWholesale } from "@/lib/use-admin-customers";
+import { ApiError } from "@/lib/api/client";
 import { formatPrice } from "@/lib/format";
 import { OrderStatusBadge } from "@/components/ui/OrderStatusBadge";
+import { Spinner } from "@/components/ui/Spinner";
+import { useToast } from "@/components/ui/ToastProvider";
 
 interface CustomerPreviewProps {
   customer: CustomerSummary | null;
-  onUpdate: () => void;
 }
 
-export function CustomerPreview({ customer, onUpdate }: CustomerPreviewProps) {
+export function CustomerPreview({ customer }: CustomerPreviewProps) {
+  const updateWholesale = useUpdateCustomerWholesale();
+  const toast = useToast();
+  const { orders, isLoading: loadingOrders, isError: ordersErrored } = useCustomerOrders(customer?.phone);
+
   if (!customer) {
     return (
       <div className="flex h-full min-h-64 flex-col items-center justify-center rounded-xl border border-dashed border-border-subtle p-6 text-center">
@@ -21,13 +26,14 @@ export function CustomerPreview({ customer, onUpdate }: CustomerPreviewProps) {
   }
 
   const customerPhone = customer.phone;
-  const customerName = customer.name;
-  const orders = getCustomerOrders(customerPhone);
 
-  function handleWholesaleToggle(checked: boolean) {
-    setWholesaleCustomer(customerPhone, checked);
-    logAction(`${checked ? "Flagged" : "Unflagged"} "${customerName}" as wholesale`);
-    onUpdate();
+  async function handleWholesaleToggle(checked: boolean) {
+    try {
+      await updateWholesale.mutateAsync({ phone: customerPhone, wholesale: checked });
+      toast.success(checked ? "Flagged as wholesale." : "Unflagged as wholesale.");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Couldn't save — try again.");
+    }
   }
 
   return (
@@ -56,12 +62,13 @@ export function CustomerPreview({ customer, onUpdate }: CustomerPreviewProps) {
         <input
           type="checkbox"
           checked={customer.wholesale}
+          disabled={updateWholesale.isPending}
           onChange={(e) => handleWholesaleToggle(e.target.checked)}
           className="h-4 w-4 accent-primary"
         />
       </label>
       <p className="mt-1.5 text-xs text-muted-foreground">
-        Unlocks wholesale pricing once customer accounts exist on the storefront.
+        Orders of qualifying quantity price automatically at the wholesale rate once flagged.
       </p>
 
       <div className="mt-5 border-t border-border-subtle pt-4">
@@ -69,20 +76,30 @@ export function CustomerPreview({ customer, onUpdate }: CustomerPreviewProps) {
           Order History
         </p>
         <div className="mt-2 flex flex-col gap-2">
-          {orders.map((order) => (
-            <div
-              key={order.id}
-              className="flex items-center justify-between gap-2 rounded-lg border border-border-subtle px-3 py-2 text-sm"
-            >
-              <div>
-                <p className="font-medium text-foreground">{order.id}</p>
-                <p className="text-xs text-muted-foreground">
-                  {new Date(order.createdAt).toLocaleDateString()} · {formatPrice(order.subtotal)}
-                </p>
-              </div>
-              <OrderStatusBadge status={order.status} />
+          {loadingOrders ? (
+            <div className="flex justify-center py-4">
+              <Spinner />
             </div>
-          ))}
+          ) : ordersErrored ? (
+            <p className="py-2 text-center text-xs text-red-600">Couldn&apos;t load order history.</p>
+          ) : orders.length === 0 ? (
+            <p className="py-2 text-center text-xs text-muted-foreground">No orders yet.</p>
+          ) : (
+            orders.map((order) => (
+              <div
+                key={order.id}
+                className="flex items-center justify-between gap-2 rounded-lg border border-border-subtle px-3 py-2 text-sm"
+              >
+                <div>
+                  <p className="font-medium text-foreground">{order.id}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {new Date(order.createdAt).toLocaleDateString()} · {formatPrice(order.subtotal)}
+                  </p>
+                </div>
+                <OrderStatusBadge status={order.status} />
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>

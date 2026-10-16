@@ -10,9 +10,9 @@ export function StarRating({ rating, reviewCount }: StarRatingProps) {
 
   return (
     <div className="flex items-center gap-1.5 text-xs">
-      <span aria-hidden className="tracking-tight text-accent">
+      <span aria-hidden className="tracking-tight text-accent-dark">
         {Array.from({ length: 5 }, (_, i) => (
-          <span key={i} className={i < filled ? "text-accent" : "text-border-subtle"}>
+          <span key={i} className={i < filled ? "text-accent-dark" : "text-border-subtle"}>
             {STAR}
           </span>
         ))}

@@ -1,17 +1,15 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import type { Product } from "@/lib/types";
+import {
+  DEFAULT_CATALOG_FILTERS,
+  PRICE_BANDS,
+  hasActiveCatalogFilters,
+  type CatalogFilters,
+  type SortOption,
+} from "@/lib/catalog-filters";
 import { ProductCard } from "@/components/home/ProductCard";
-
-type SortOption = "newest" | "price-asc" | "price-desc" | "rating";
-
-const PRICE_BANDS: Array<{ label: string; test: (price: number) => boolean }> = [
-  { label: "All Prices", test: () => true },
-  { label: "Under GH₵100", test: (price) => price < 100 },
-  { label: "GH₵100 – GH₵250", test: (price) => price >= 100 && price <= 250 },
-  { label: "Over GH₵250", test: (price) => price > 250 },
-];
 
 function pillClasses(active: boolean) {
   return `rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
@@ -30,62 +28,40 @@ function FilterGroup({ title, children }: { title: string; children: ReactNode }
   );
 }
 
-function toggleInSet(set: Set<string>, value: string) {
-  const next = new Set(set);
-  if (next.has(value)) next.delete(value);
-  else next.add(value);
-  return next;
+function toggle(values: string[], value: string) {
+  return values.includes(value) ? values.filter((v) => v !== value) : [...values, value];
 }
 
 interface CatalogViewProps {
   title: string;
   subtitle?: string;
   products: Product[];
+  /** Count across all pages for the current filters. */
+  total: number;
+  filters: CatalogFilters;
+  onFiltersChange: (next: CatalogFilters) => void;
+  sizeOptions: string[];
+  colorOptions: string[];
+  pagination?: ReactNode;
 }
 
-// Drives every product-listing page (categories, New Arrivals, Best
-// Sellers, Wholesale) — only the title/subtitle/product list differ.
-export function CatalogView({ title, subtitle, products }: CatalogViewProps) {
-  const [sort, setSort] = useState<SortOption>("newest");
-  const [priceBand, setPriceBand] = useState(0);
-  const [sizes, setSizes] = useState<Set<string>>(new Set());
-  const [colors, setColors] = useState<Set<string>>(new Set());
-
-  const availableSizes = useMemo(
-    () => Array.from(new Set(products.flatMap((p) => p.sizes ?? []))).sort(),
-    [products],
-  );
-  const availableColors = useMemo(
-    () => Array.from(new Set(products.flatMap((p) => p.colors ?? []))).sort(),
-    [products],
-  );
-
-  const filtered = products.filter((product) => {
-    if (!PRICE_BANDS[priceBand].test(product.retailPrice)) return false;
-    if (sizes.size > 0 && !(product.sizes ?? []).some((size) => sizes.has(size))) return false;
-    if (colors.size > 0 && !(product.colors ?? []).some((color) => colors.has(color))) return false;
-    return true;
-  });
-
-  const sorted = [...filtered].sort((a, b) => {
-    switch (sort) {
-      case "price-asc":
-        return a.retailPrice - b.retailPrice;
-      case "price-desc":
-        return b.retailPrice - a.retailPrice;
-      case "rating":
-        return b.rating - a.rating;
-      default:
-        return 0;
-    }
-  });
-
-  const hasActiveFilters = priceBand !== 0 || sizes.size > 0 || colors.size > 0;
+// Drives every product-listing page. The page decides what `products` contains;
+// this component only renders the controls and reports changes back.
+export function CatalogView({
+  title,
+  subtitle,
+  products,
+  total,
+  filters,
+  onFiltersChange,
+  sizeOptions,
+  colorOptions,
+  pagination,
+}: CatalogViewProps) {
+  const hasActiveFilters = hasActiveCatalogFilters(filters);
 
   function resetFilters() {
-    setPriceBand(0);
-    setSizes(new Set());
-    setColors(new Set());
+    onFiltersChange({ ...DEFAULT_CATALOG_FILTERS, sort: filters.sort });
   }
 
   return (
@@ -102,8 +78,8 @@ export function CatalogView({ title, subtitle, products }: CatalogViewProps) {
                   <input
                     type="radio"
                     name="price"
-                    checked={priceBand === index}
-                    onChange={() => setPriceBand(index)}
+                    checked={filters.priceBand === index}
+                    onChange={() => onFiltersChange({ ...filters, priceBand: index })}
                   />
                   {band.label}
                 </label>
@@ -111,15 +87,16 @@ export function CatalogView({ title, subtitle, products }: CatalogViewProps) {
             </div>
           </FilterGroup>
 
-          {availableSizes.length > 0 && (
+          {sizeOptions.length > 0 && (
             <FilterGroup title="Size">
               <div className="flex flex-wrap gap-2">
-                {availableSizes.map((size) => (
+                {sizeOptions.map((size) => (
                   <button
                     key={size}
                     type="button"
-                    onClick={() => setSizes(toggleInSet(sizes, size))}
-                    className={pillClasses(sizes.has(size))}
+                    aria-pressed={filters.sizes.includes(size)}
+                    onClick={() => onFiltersChange({ ...filters, sizes: toggle(filters.sizes, size) })}
+                    className={pillClasses(filters.sizes.includes(size))}
                   >
                     {size}
                   </button>
@@ -128,15 +105,16 @@ export function CatalogView({ title, subtitle, products }: CatalogViewProps) {
             </FilterGroup>
           )}
 
-          {availableColors.length > 0 && (
+          {colorOptions.length > 0 && (
             <FilterGroup title="Color">
               <div className="flex flex-wrap gap-2">
-                {availableColors.map((color) => (
+                {colorOptions.map((color) => (
                   <button
                     key={color}
                     type="button"
-                    onClick={() => setColors(toggleInSet(colors, color))}
-                    className={pillClasses(colors.has(color))}
+                    aria-pressed={filters.colors.includes(color)}
+                    onClick={() => onFiltersChange({ ...filters, colors: toggle(filters.colors, color) })}
+                    className={pillClasses(filters.colors.includes(color))}
                   >
                     {color}
                   </button>
@@ -158,11 +136,12 @@ export function CatalogView({ title, subtitle, products }: CatalogViewProps) {
 
         <div>
           <div className="flex items-center justify-between border-b border-border-subtle pb-4">
-            <p className="text-sm text-muted-foreground">{sorted.length} products</p>
+            <p className="text-sm text-muted-foreground">{total} products</p>
             <select
-              value={sort}
-              onChange={(e) => setSort(e.target.value as SortOption)}
-              className="rounded-lg border border-border-subtle bg-background px-3 py-1.5 text-sm"
+              aria-label="Sort products"
+              value={filters.sort}
+              onChange={(e) => onFiltersChange({ ...filters, sort: e.target.value as SortOption })}
+              className="rounded-lg border border-input-border bg-background px-3 py-1.5 text-sm"
             >
               <option value="newest">Newest</option>
               <option value="price-asc">Price: Low to High</option>
@@ -171,24 +150,27 @@ export function CatalogView({ title, subtitle, products }: CatalogViewProps) {
             </select>
           </div>
 
-          {sorted.length === 0 ? (
+          {products.length === 0 ? (
             <div className="py-16 text-center">
               <p className="text-sm text-muted-foreground">No products match your filters.</p>
-              <button
-                type="button"
-                onClick={resetFilters}
-                className="mt-3 text-sm font-medium text-primary hover:underline"
-              >
-                Clear filters
-              </button>
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="mt-3 text-sm font-medium text-primary hover:underline"
+                >
+                  Clear filters
+                </button>
+              )}
             </div>
           ) : (
             <div className="mt-6 grid grid-cols-2 gap-6 sm:grid-cols-3">
-              {sorted.map((product) => (
+              {products.map((product) => (
                 <ProductCard key={product.slug} product={product} />
               ))}
             </div>
           )}
+          {pagination}
         </div>
       </div>
     </div>

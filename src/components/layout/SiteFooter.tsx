@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { SITE } from "@/lib/constants";
 import { useSiteSettings } from "@/lib/use-site-settings";
 import { useCategories } from "@/lib/use-categories";
@@ -55,7 +56,7 @@ export function SiteFooter() {
     <footer className="bg-foreground text-background">
       <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:grid-cols-2 lg:grid-cols-5">
         <div className="lg:col-span-1">
-          <p className="font-serif text-lg font-semibold text-accent">{SITE.name}</p>
+          <Image src="/logo-white.png" alt={SITE.name} width={392} height={340} className="h-12 w-auto" />
           <p className="mt-2 max-w-xs text-sm text-background/70">{tagline}</p>
           {socialLinks.length > 0 && (
             <div className="mt-4 flex gap-3">

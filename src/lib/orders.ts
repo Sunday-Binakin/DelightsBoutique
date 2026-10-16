@@ -1,27 +1,46 @@
-import { seedOrders } from "@/lib/data/orders";
-import { addOrderNotification } from "@/lib/notifications";
-
-export type PaymentMethod = "Bank Transfer" | "Mobile Money" | "Cash on Delivery/Pickup";
-export type FulfillmentMethod = "Delivery" | "Pickup";
+export type PaymentMethod = "bankTransfer" | "mobileMoney" | "cashOnDeliveryOrPickup";
+export type FulfillmentMethod = "delivery" | "pickup";
 
 export type OrderStatus =
-  | "Pending Confirmation"
-  | "Confirmed"
-  | "Processing"
-  | "Out for Delivery"
-  | "Ready for Pickup"
-  | "Completed"
-  | "Cancelled";
+  | "pendingConfirmation"
+  | "confirmed"
+  | "processing"
+  | "outForDelivery"
+  | "readyForPickup"
+  | "completed"
+  | "cancelled";
 
 export const ORDER_STATUSES: OrderStatus[] = [
-  "Pending Confirmation",
-  "Confirmed",
-  "Processing",
-  "Out for Delivery",
-  "Ready for Pickup",
-  "Completed",
-  "Cancelled",
+  "pendingConfirmation",
+  "confirmed",
+  "processing",
+  "outForDelivery",
+  "readyForPickup",
+  "completed",
+  "cancelled",
 ];
+
+/** Human-readable labels for the camelCase enum values the backend uses — render these, never the raw value. */
+export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
+  pendingConfirmation: "Pending Confirmation",
+  confirmed: "Confirmed",
+  processing: "Processing",
+  outForDelivery: "Out for Delivery",
+  readyForPickup: "Ready for Pickup",
+  completed: "Completed",
+  cancelled: "Cancelled",
+};
+
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  bankTransfer: "Bank Transfer",
+  mobileMoney: "Mobile Money",
+  cashOnDeliveryOrPickup: "Cash on Delivery/Pickup",
+};
+
+export const FULFILLMENT_LABELS: Record<FulfillmentMethod, string> = {
+  delivery: "Delivery",
+  pickup: "Pickup",
+};
 
 /**
  * There's no courier/shipping step — fulfillment is always in-house
@@ -29,8 +48,8 @@ export const ORDER_STATUSES: OrderStatus[] = [
  * through only include whichever of those two matches its own fulfillment.
  */
 export function getStatusOptions(fulfillment: FulfillmentMethod): OrderStatus[] {
-  const fulfillmentStatus: OrderStatus = fulfillment === "Delivery" ? "Out for Delivery" : "Ready for Pickup";
-  return ["Pending Confirmation", "Confirmed", "Processing", fulfillmentStatus, "Completed", "Cancelled"];
+  const fulfillmentStatus: OrderStatus = fulfillment === "delivery" ? "outForDelivery" : "readyForPickup";
+  return ["pendingConfirmation", "confirmed", "processing", fulfillmentStatus, "completed", "cancelled"];
 }
 
 export interface OrderItem {
@@ -59,51 +78,6 @@ export interface Order {
   internalNotes?: string;
 }
 
-const STORAGE_KEY = "delight-boutique-orders";
-
-function readAll(): Order[] {
-  // No orders placed yet on this device falls back to sample data, so the
-  // admin Orders UI isn't empty — same pattern as product-store.ts.
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : seedOrders;
-  } catch {
-    return seedOrders;
-  }
-}
-
-function writeAll(orders: Order[]) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
-  } catch {
-    // Storage may be full or blocked — the order still exists for this session.
-  }
-}
-
-function generateOrderId() {
-  return `DB-${Date.now().toString(36).toUpperCase()}`;
-}
-
-export function createOrder(input: Omit<Order, "id" | "createdAt" | "status">): Order {
-  const order: Order = {
-    ...input,
-    id: generateOrderId(),
-    createdAt: new Date().toISOString(),
-    status: "Pending Confirmation",
-  };
-  writeAll([...readAll(), order]);
-  addOrderNotification(order);
-  return order;
-}
-
-export function getOrder(id: string): Order | undefined {
-  return readAll().find((order) => order.id === id);
-}
-
-export function getAllOrders(): Order[] {
-  return readAll();
-}
-
 /** Digits only, and normalized from "+233…"/"233…" international format to local "0…" so
  * a customer typing either form still matches what was captured at checkout. */
 export function normalizePhone(phone: string): string {
@@ -112,30 +86,4 @@ export function normalizePhone(phone: string): string {
     return `0${digits.slice(3)}`;
   }
   return digits;
-}
-
-/** Every order placed with a given phone number, most recent first — the
- * lookup behind the customer-facing "Track My Order" page. */
-export function getOrdersByPhone(phone: string): Order[] {
-  const target = normalizePhone(phone);
-  if (!target) return [];
-
-  return readAll()
-    .filter((order) => normalizePhone(order.phone) === target)
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-}
-
-export function updateOrder(
-  id: string,
-  updates: Partial<Pick<Order, "status" | "internalNotes">>,
-): Order | undefined {
-  const all = readAll();
-  const index = all.findIndex((order) => order.id === id);
-  if (index === -1) return undefined;
-
-  const updated = { ...all[index], ...updates };
-  const next = [...all];
-  next[index] = updated;
-  writeAll(next);
-  return updated;
 }

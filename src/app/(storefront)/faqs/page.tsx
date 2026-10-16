@@ -1,9 +1,14 @@
 "use client";
 
-import { usePagesContent } from "@/lib/use-pages-content";
+import { useFaqs } from "@/lib/use-faqs";
+import { LoadingBlock } from "@/components/ui/Spinner";
+import { QueryError } from "@/components/ui/QueryError";
 
 export default function FaqsPage() {
-  const { faqs } = usePagesContent();
+  const { faqs, isLoading, isError, refetch } = useFaqs();
+
+  if (isLoading) return <LoadingBlock />;
+  if (isError) return <QueryError label="the FAQs" onRetry={refetch} />;
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-12">

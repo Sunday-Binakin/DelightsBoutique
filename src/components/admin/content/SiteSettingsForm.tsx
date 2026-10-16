@@ -1,29 +1,52 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { getSiteSettings, saveSiteSettings, type SiteSettings } from "@/lib/site-settings";
-import { logAction } from "@/lib/audit-log";
+import { useMarkUnsaved } from "@/lib/unsaved-changes";
+import { type SiteSettings } from "@/lib/site-settings";
+import { useSiteSettingsQuery } from "@/lib/use-site-settings";
+import { useUpdateSiteSettings } from "@/lib/use-admin-content";
 import { Button } from "@/components/ui/Button";
 import { SiteSettingsPreview } from "@/components/admin/content/SiteSettingsPreview";
+import { LoadingBlock } from "@/components/ui/Spinner";
+import { QueryError } from "@/components/ui/QueryError";
+import { useToast } from "@/components/ui/ToastProvider";
 
 const inputClasses =
-  "w-full rounded-lg border border-border-subtle bg-background px-3.5 py-2.5 text-sm outline-none focus:border-primary";
+  "w-full rounded-lg border border-input-border bg-background px-3.5 py-2.5 text-sm outline-none focus:border-primary disabled:opacity-50";
 const labelClasses = "flex flex-col gap-1.5 text-sm font-medium text-foreground";
 
 export function SiteSettingsForm() {
-  const [settings, setSettings] = useState<SiteSettings>(() => getSiteSettings());
+  const { settings: initialSettings, isLoading, isError, refetch } = useSiteSettingsQuery();
+  if (isLoading) return <LoadingBlock />;
+  if (isError) return <QueryError label="site settings" onRetry={refetch} />;
+  return <SiteSettingsFormInner initialSettings={initialSettings} />;
+}
+
+// The public endpoint deliberately omits notifyByEmail/notificationEmail/notifyByWhatsapp
+// (admin-only), and there's no admin GET for them either — so their current saved value
+// can't be read back yet. They start from the defaults baked into initialSettings until
+// that gap is closed.
+function SiteSettingsFormInner({ initialSettings }: { initialSettings: SiteSettings }) {
+  const [settings, setSettings] = useState<SiteSettings>(initialSettings);
   const [saved, setSaved] = useState(true);
+  useMarkUnsaved(!saved);
+  const updateSiteSettings = useUpdateSiteSettings();
+  const toast = useToast();
 
   function update<K extends keyof SiteSettings>(key: K, value: SiteSettings[K]) {
     setSettings((prev) => ({ ...prev, [key]: value }));
     setSaved(false);
   }
 
-  function handleSubmit(e: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    saveSiteSettings(settings);
-    logAction("Updated site settings");
-    setSaved(true);
+    try {
+      await updateSiteSettings.mutateAsync(settings);
+      setSaved(true);
+      toast.success("Site settings saved.");
+    } catch {
+      toast.error("Couldn't save site settings. Try again.");
+    }
   }
 
   return (
@@ -193,8 +216,8 @@ export function SiteSettingsForm() {
           WhatsApp me on the number above ({settings.whatsappNumber})
         </label>
 
-        <Button type="submit" disabled={saved} className="self-start">
-          {saved ? "Saved" : "Save Settings"}
+        <Button type="submit" disabled={saved || updateSiteSettings.isPending} className="self-start">
+          {updateSiteSettings.isPending ? "Saving…" : saved ? "Saved" : "Save Settings"}
         </Button>
       </form>
 

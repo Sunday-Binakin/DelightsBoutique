@@ -1,16 +1,51 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { DEFAULT_BANNERS, getBanners, type BannerSet } from "@/lib/banners";
+import { useQuery } from "@tanstack/react-query";
+import { getBanners as fetchBanners } from "@/lib/api/content";
+import type { BannerDto } from "@/lib/api/types";
+import { DEFAULT_BANNERS, type BannerSet } from "@/lib/banners";
+import type { PromoBannerContent } from "@/lib/types";
 
-/** Live homepage banner content for client components — see use-products.ts for the same pattern. */
+function toBanner(dto: BannerDto): PromoBannerContent {
+  return {
+    eyebrow: dto.eyebrow,
+    title: dto.title,
+    ctaLabel: dto.ctaLabel,
+    href: dto.href,
+    tone: dto.tone,
+    artCategorySlug: dto.artCategorySlug,
+    imageUrl: dto.imageUrl ?? undefined,
+    textColor: dto.textColor ?? undefined,
+  };
+}
+
+function toBannerSet(data: Awaited<ReturnType<typeof fetchBanners>> | undefined): BannerSet {
+  if (!data) return DEFAULT_BANNERS;
+  return {
+    heroMain: toBanner(data.heroMain),
+    heroSide1: toBanner(data.heroSide1),
+    heroSide2: toBanner(data.heroSide2),
+    fullWidth: toBanner(data.fullWidth),
+  };
+}
+
+/** Live homepage banner content for client components. */
 export function useBanners(): BannerSet {
-  const [banners, setBanners] = useState<BannerSet>(DEFAULT_BANNERS);
+  const query = useQuery({
+    queryKey: ["banners"],
+    queryFn: fetchBanners,
+  });
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration from localStorage
-    setBanners(getBanners());
-  }, []);
+  return toBannerSet(query.data);
+}
 
-  return banners;
+/** Same data plus loading/error state, for the admin editor — it seeds local draft
+ * state per banner and needs to wait for the real fetch rather than the defaults. */
+export function useBannersQuery() {
+  const query = useQuery({
+    queryKey: ["banners"],
+    queryFn: fetchBanners,
+  });
+
+  return { ...query, banners: toBannerSet(query.data) };
 }

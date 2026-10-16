@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useWishlist } from "@/lib/wishlist-context";
+import { BRAND_GRADIENT } from "@/lib/tone";
 import { HeartIcon } from "@/components/ui/icons";
 
 export function WishlistIconButton() {
@@ -15,7 +16,9 @@ export function WishlistIconButton() {
     >
       <HeartIcon className="h-5 w-5" />
       {slugs.length > 0 && (
-        <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold text-white">
+        <span
+          className={`${BRAND_GRADIENT} absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold text-white`}
+        >
           {slugs.length}
         </span>
       )}

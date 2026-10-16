@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useCategories } from "@/lib/use-categories";
+import { useDialog } from "@/lib/use-dialog";
 import { UTILITY_LINKS } from "@/lib/constants";
 import { MenuIcon, CloseIcon } from "@/components/ui/icons";
 
@@ -11,6 +12,16 @@ const linkClasses = "block rounded-lg px-3 py-2.5 text-sm font-medium text-foreg
 export function MobileMenu() {
   const categories = useCategories();
   const [open, setOpen] = useState(false);
+  const panelRef = useDialog<HTMLDivElement>(open, () => setOpen(false));
+
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [open]);
 
   function close() {
     setOpen(false);
@@ -22,6 +33,8 @@ export function MobileMenu() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Open menu"
+        aria-expanded={open}
+        aria-controls="mobile-menu"
         className="flex h-9 w-9 items-center justify-center rounded-full text-foreground transition-colors hover:bg-foreground/5 lg:hidden"
       >
         <MenuIcon className="h-5 w-5" />
@@ -31,11 +44,19 @@ export function MobileMenu() {
         <div className="fixed inset-0 z-50 lg:hidden">
           <button
             type="button"
-            aria-label="Close menu"
+            tabIndex={-1}
+            aria-hidden="true"
             onClick={close}
             className="absolute inset-0 bg-foreground/40"
           />
-          <div className="absolute inset-y-0 left-0 flex w-72 max-w-[85%] flex-col overflow-y-auto bg-background p-5 shadow-lg">
+          <div
+            id="mobile-menu"
+            ref={panelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Site menu"
+            className="absolute inset-y-0 left-0 flex w-72 max-w-[85%] flex-col overflow-y-auto bg-background p-5 shadow-lg"
+          >
             <div className="flex items-center justify-between">
               <p className="font-serif text-lg font-semibold text-primary">Menu</p>
               <button

@@ -1,18 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import type { Category } from "@/lib/types";
-import { categories as seedCategories } from "@/lib/data/categories";
-import { getAllCategories } from "@/lib/category-store";
+import { useQuery } from "@tanstack/react-query";
+import { getCategories, toCategory } from "@/lib/api/categories";
 
-/** Live category list for client components — see use-products.ts for the same pattern. */
-export function useCategories(): Category[] {
-  const [categories, setCategories] = useState<Category[]>(seedCategories);
+/** Bare, unpaginated list per the contract — small enough to always fetch in full. */
+export function useCategories() {
+  const query = useQuery({
+    queryKey: ["categories"],
+    queryFn: getCategories,
+  });
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration from localStorage
-    setCategories(getAllCategories());
-  }, []);
+  return query.data ? query.data.map(toCategory) : [];
+}
 
-  return categories;
+/** Same data plus loading/error state, for callers that need to tell "still
+ * loading" apart from "genuinely not found" (e.g. a category detail page). */
+export function useCategoriesQuery() {
+  const query = useQuery({
+    queryKey: ["categories"],
+    queryFn: getCategories,
+  });
+
+  return { ...query, categories: query.data ? query.data.map(toCategory) : [] };
 }

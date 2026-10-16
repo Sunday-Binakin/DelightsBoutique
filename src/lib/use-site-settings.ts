@@ -1,16 +1,31 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { DEFAULT_SITE_SETTINGS, getSiteSettings, type SiteSettings } from "@/lib/site-settings";
+import { useQuery } from "@tanstack/react-query";
+import { getSiteSettings } from "@/lib/api/content";
+import { DEFAULT_SITE_SETTINGS, type SiteSettings } from "@/lib/site-settings";
 
-/** Live site settings for client components — see use-products.ts for the same pattern. */
+/** Live site settings for client components. The public endpoint omits the
+ * notification fields (admin-only) — the storefront never reads those. */
 export function useSiteSettings(): SiteSettings {
-  const [settings, setSettings] = useState<SiteSettings>(DEFAULT_SITE_SETTINGS);
+  const query = useQuery({
+    queryKey: ["site-settings"],
+    queryFn: getSiteSettings,
+  });
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration from localStorage
-    setSettings(getSiteSettings());
-  }, []);
+  return query.data ? { ...DEFAULT_SITE_SETTINGS, ...query.data } : DEFAULT_SITE_SETTINGS;
+}
 
-  return settings;
+/** Same data plus `isLoading`, for callers (the admin settings form) that need to wait
+ * for the real fetch before seeding editable local state — otherwise they'd initialize
+ * from the defaults and never pick up the real values once they arrive. */
+export function useSiteSettingsQuery() {
+  const query = useQuery({
+    queryKey: ["site-settings"],
+    queryFn: getSiteSettings,
+  });
+
+  return {
+    ...query,
+    settings: query.data ? { ...DEFAULT_SITE_SETTINGS, ...query.data } : DEFAULT_SITE_SETTINGS,
+  };
 }

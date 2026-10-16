@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useProducts } from "@/lib/use-products";
+import { useProduct } from "@/lib/use-products";
 import { formatPrice } from "@/lib/format";
 import { useSiteSettings } from "@/lib/use-site-settings";
 import { buildWhatsAppLink } from "@/lib/site-settings";
@@ -11,10 +11,15 @@ import { StarRating } from "@/components/ui/StarRating";
 import { StockBadge } from "@/components/ui/StockBadge";
 import { WhatsAppIcon } from "@/components/ui/icons";
 import { LinkButton } from "@/components/ui/Button";
+import { LoadingBlock } from "@/components/ui/Spinner";
+import { QueryError } from "@/components/ui/QueryError";
 
 export function ProductPageClient({ slug }: { slug: string }) {
-  const product = useProducts().find((p) => p.slug === slug);
+  const { product, isLoading, isError, notFound, refetch } = useProduct(slug);
   const settings = useSiteSettings();
+
+  if (isLoading) return <LoadingBlock />;
+  if (isError && !notFound) return <QueryError label="this product" onRetry={refetch} />;
 
   if (!product) {
     return (

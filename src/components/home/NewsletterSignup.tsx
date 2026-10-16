@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { useStorefrontCopy } from "@/lib/use-storefront-copy";
-import { addSubscriber } from "@/lib/newsletter";
+import { subscribeToNewsletter } from "@/lib/newsletter";
+import { describeApiError } from "@/lib/api/client";
 import { MailIcon } from "@/components/ui/icons";
 import { Button } from "@/components/ui/Button";
 
@@ -10,11 +12,11 @@ export function NewsletterSignup() {
   const copy = useStorefrontCopy();
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const subscribe = useMutation({ mutationFn: subscribeToNewsletter });
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    addSubscriber(email);
-    setSubmitted(true);
+    subscribe.mutate(email.trim(), { onSuccess: () => setSubmitted(true) });
   }
 
   return (
@@ -38,13 +40,24 @@ export function NewsletterSignup() {
             <input
               type="email"
               required
+              disabled={subscribe.isPending}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              aria-label="Email address"
               placeholder="Email address"
-              className="w-full rounded-full border border-border-subtle bg-background px-4 py-2.5 text-sm outline-none focus:border-primary"
+              className="w-full rounded-full border border-input-border bg-background px-4 py-2.5 text-sm outline-none focus:border-primary disabled:opacity-50"
+              suppressHydrationWarning
             />
-            <Button type="submit">Subscribe</Button>
+            <Button type="submit" disabled={subscribe.isPending}>
+              {subscribe.isPending ? "Subscribing…" : "Subscribe"}
+            </Button>
           </form>
+        )}
+
+        {subscribe.isError && (
+          <p role="alert" className="mt-3 text-sm text-red-700">
+            {describeApiError(subscribe.error, "Couldn't subscribe you. Please try again.")}
+          </p>
         )}
       </div>
     </section>

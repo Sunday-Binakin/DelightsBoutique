@@ -12,7 +12,11 @@ process.env.NODE_OPTIONS = `${process.env.NODE_OPTIONS ?? ""} --no-experimental-
 export default defineConfig({
   test: {
     environment: "jsdom",
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.{ts,tsx}"],
+    setupFiles: ["src/test/setup.ts"],
+    env: {
+      NEXT_PUBLIC_API_URL: "https://api.test.invalid",
+    },
   },
   resolve: {
     alias: {

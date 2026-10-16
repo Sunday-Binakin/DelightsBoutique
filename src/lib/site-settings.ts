@@ -42,26 +42,6 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   notifyByWhatsapp: true,
 };
 
-const STORAGE_KEY = "delight-boutique-site-settings";
-
-export function getSiteSettings(): SiteSettings {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? { ...DEFAULT_SITE_SETTINGS, ...JSON.parse(raw) } : DEFAULT_SITE_SETTINGS;
-  } catch {
-    return DEFAULT_SITE_SETTINGS;
-  }
-}
-
-export function saveSiteSettings(updates: Partial<SiteSettings>) {
-  const next = { ...getSiteSettings(), ...updates };
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  } catch {
-    // Storage may be full or blocked — the change still applies for this session.
-  }
-}
-
 export function buildWhatsAppLink(phoneNumber: string, message: string) {
   return `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
 }

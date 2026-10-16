@@ -2,13 +2,16 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { isAdminAuthenticated } from "@/lib/admin-auth";
 
+// middleware.ts already redirects to /admin/login when there's no session
+// cookie at all; if we got this far there's a cookie, so head for the
+// dashboard — the protected layout bounces back to login if it turns out
+// to be stale.
 export default function AdminIndexPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace(isAdminAuthenticated() ? "/admin/dashboard" : "/admin/login");
+    router.replace("/admin/dashboard");
   }, [router]);
 
   return null;
