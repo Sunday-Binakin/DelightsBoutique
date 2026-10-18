@@ -66,18 +66,29 @@ export function useProductsBySlug(slugs: string[]) {
     queries: slugs.map((slug) => ({
       queryKey: ["product", slug],
       queryFn: () => getProductBySlug(slug),
+      retry: shouldRetryQuery,
     })),
   });
 
   const bySlug = new Map<string, Product>();
+  const notFoundSlugs: string[] = [];
   results.forEach((result, index) => {
     if (result.data) bySlug.set(slugs[index], toProduct(result.data));
+    else if (isNotFoundError(result.error)) notFoundSlugs.push(slugs[index]);
   });
 
   return {
     bySlug,
+    // Confirmed-gone slugs (deleted product, or a stale entry left in
+    // localStorage from a different environment/seed) — callers that persist
+    // these slugs somewhere (cart, wishlist) should drop them for real, not
+    // just hide them from this render, or they linger forever.
+    notFoundSlugs,
     isLoading: results.some((r) => r.isLoading),
-    isError: results.some((r) => r.isError),
+    // A 404 just means that one line's product no longer exists. Drop it
+    // (via notFoundSlugs) rather than treating the whole cart as unreachable
+    // — only a genuine network/5xx failure should surface as a blanket error.
+    isError: results.some((r) => r.isError && !isNotFoundError(r.error)),
     refetch: () => results.forEach((r) => r.refetch()),
   };
 }

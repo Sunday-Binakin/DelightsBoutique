@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/lib/cart-context";
 import { useProductsBySlug } from "@/lib/use-products";
@@ -22,15 +22,30 @@ const inputClasses =
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { lines, clear } = useCart();
+  const { lines, clear, removeLine } = useCart();
   const settings = useSiteSettings();
   const copy = useStorefrontCopy();
   const {
     bySlug: products,
+    notFoundSlugs,
     isLoading: loadingProducts,
     isError: productsErrored,
     refetch: refetchProducts,
   } = useProductsBySlug(lines.map((line) => line.slug));
+
+  // Same cleanup as the cart page: a slug that's confirmed gone (deleted
+  // product, stale localStorage entry) gets dropped from the cart for real —
+  // otherwise it could still get submitted with the order below.
+  const notFoundKey = notFoundSlugs.join(",");
+  useEffect(() => {
+    if (!notFoundSlugs.length) return;
+    lines
+      .filter((line) => notFoundSlugs.includes(line.slug))
+      .forEach((line) => removeLine(line.slug, line.size, line.color));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-run only when the set of not-found slugs changes
+  }, [notFoundKey]);
+
+  const visibleLines = lines.filter((line) => !notFoundSlugs.includes(line.slug));
 
   // One key per visit to this form, reused across retries of the same submit
   // so a flaky connection can't create duplicate orders.
@@ -50,7 +65,7 @@ export default function CheckoutPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  const previewItems = lines
+  const previewItems = visibleLines
     .map((line) => {
       const product = products.get(line.slug);
       if (!product) return null;
@@ -58,7 +73,7 @@ export default function CheckoutPage() {
     })
     .filter((item): item is NonNullable<typeof item> => item !== null);
 
-  if (lines.length === 0) {
+  if (visibleLines.length === 0) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-20 text-center">
         <h1 className="font-serif text-2xl font-semibold text-foreground">Your cart is empty</h1>
@@ -76,7 +91,7 @@ export default function CheckoutPage() {
     try {
       const order = await checkout(
         {
-          items: lines.map((line) => ({
+          items: visibleLines.map((line) => ({
             slug: line.slug,
             quantity: line.quantity,
             size: line.size ?? null,

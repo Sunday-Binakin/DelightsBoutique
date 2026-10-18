@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { useCart, type CartLine } from "@/lib/cart-context";
 import { useProductsBySlug } from "@/lib/use-products";
@@ -57,19 +58,36 @@ function CartLineRow({ line, product }: { line: CartLine; product: Product }) {
 }
 
 export default function CartPage() {
-  const { lines } = useCart();
+  const { lines, removeLine } = useCart();
   const copy = useStorefrontCopy();
-  const { bySlug, isLoading, isError, refetch } = useProductsBySlug(lines.map((line) => line.slug));
+  const { bySlug, notFoundSlugs, isLoading, isError, refetch } = useProductsBySlug(
+    lines.map((line) => line.slug),
+  );
 
-  const subtotal = lines.reduce((sum, line) => {
+  // Confirmed-deleted products (or stale slugs left over from a different
+  // environment/seed) get dropped from the cart for real, not just hidden
+  // from this render — otherwise the item count badge keeps counting them
+  // forever and the cart looks broken rather than just empty.
+  const notFoundKey = notFoundSlugs.join(",");
+  useEffect(() => {
+    if (!notFoundSlugs.length) return;
+    lines
+      .filter((line) => notFoundSlugs.includes(line.slug))
+      .forEach((line) => removeLine(line.slug, line.size, line.color));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-run only when the set of not-found slugs changes
+  }, [notFoundKey]);
+
+  const visibleLines = lines.filter((line) => !notFoundSlugs.includes(line.slug));
+
+  const subtotal = visibleLines.reduce((sum, line) => {
     const product = bySlug.get(line.slug);
     return product ? sum + product.retailPrice * line.quantity : sum;
   }, 0);
 
-  if (lines.length > 0 && isLoading) return <LoadingBlock />;
-  if (lines.length > 0 && isError) return <QueryError label="your cart" onRetry={refetch} />;
+  if (visibleLines.length > 0 && isLoading) return <LoadingBlock />;
+  if (visibleLines.length > 0 && isError) return <QueryError label="your cart" onRetry={refetch} />;
 
-  if (lines.length === 0) {
+  if (visibleLines.length === 0) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-20 text-center">
         <BagIcon className="mx-auto h-10 w-10 text-muted-foreground" />
@@ -92,7 +110,7 @@ export default function CartPage() {
 
       <div className="mt-6 grid gap-10 lg:grid-cols-[2fr_1fr]">
         <div>
-          {lines.map((line) => {
+          {visibleLines.map((line) => {
             const product = bySlug.get(line.slug);
             if (!product) return null;
             return (

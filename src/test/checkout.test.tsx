@@ -48,6 +48,10 @@ describe("checkout order summary", () => {
     renderCheckout();
 
     expect(await screen.findByText(/order summary/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /try again/i })).toBeInTheDocument();
+    // A 500 is a transient failure, so the product lookup retries (with backoff)
+    // before giving up — same retry policy useProduct already uses elsewhere.
+    expect(
+      await screen.findByRole("button", { name: /try again/i }, { timeout: 5000 }),
+    ).toBeInTheDocument();
   });
 });

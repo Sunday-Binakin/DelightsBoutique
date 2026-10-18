@@ -11,6 +11,7 @@ import {
   createFaq,
   updateFaq,
   deleteFaq,
+  updateTheme,
 } from "@/lib/api/content";
 import type { BannerKey, PageKey } from "@/lib/api/types";
 
@@ -86,5 +87,13 @@ export function useDeleteFaq() {
   return useMutation({
     mutationFn: deleteFaq,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["faqs"] }),
+  });
+}
+
+export function useUpdateTheme() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: updateTheme,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["theme"] }),
   });
 }
