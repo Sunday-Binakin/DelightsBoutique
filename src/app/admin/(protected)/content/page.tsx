@@ -9,6 +9,7 @@ import { CollectionSectionForm } from "@/components/admin/content/CollectionSect
 import { FlashSaleForm } from "@/components/admin/content/FlashSaleForm";
 import { PagesFaqsEditor } from "@/components/admin/content/PagesFaqsEditor";
 import { StorefrontCopyForm } from "@/components/admin/content/StorefrontCopyForm";
+import { ThemeForm } from "@/components/admin/content/ThemeForm";
 
 const TAB_SETTINGS = "Site Settings";
 const TAB_BANNERS = "Homepage Banners";
@@ -16,6 +17,7 @@ const TAB_COLLECTION = "Collection Section";
 const TAB_FLASH_SALE = "Flash Sale";
 const TAB_PAGES = "Pages & FAQs";
 const TAB_STOREFRONT_COPY = "Other Pages";
+const TAB_BRANDING = "Branding";
 
 export default function AdminContentPage() {
   const [tab, setTab] = useState(TAB_SETTINGS);
@@ -38,6 +40,7 @@ export default function AdminContentPage() {
             TAB_FLASH_SALE,
             TAB_PAGES,
             TAB_STOREFRONT_COPY,
+            TAB_BRANDING,
           ]}
           active={tab}
           onChange={setTab}
@@ -50,6 +53,7 @@ export default function AdminContentPage() {
       {tab === TAB_FLASH_SALE && <FlashSaleForm />}
       {tab === TAB_PAGES && <PagesFaqsEditor />}
       {tab === TAB_STOREFRONT_COPY && <StorefrontCopyForm />}
+      {tab === TAB_BRANDING && <ThemeForm />}
     </div>
   );
 }

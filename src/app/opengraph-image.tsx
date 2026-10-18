@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
 import { SITE } from "@/lib/constants";
 import { DEFAULT_SITE_SETTINGS } from "@/lib/site-settings";
+import { deriveThemeTokens, getServerTheme } from "@/lib/theme";
 
 // Site-wide fallback share-preview image — every route inherits this
 // unless it defines its own opengraph-image.tsx. Product/category photos
@@ -11,6 +12,9 @@ export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
 export default async function Image() {
+  const theme = await getServerTheme();
+  const t = deriveThemeTokens(theme);
+
   return new ImageResponse(
     (
       <div
@@ -21,7 +25,7 @@ export default async function Image() {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          background: "linear-gradient(135deg, #0550c2 0%, #bf5501 100%)",
+          background: `linear-gradient(135deg, ${t.primary} 0%, ${t.accentDark} 100%)`,
           color: "#ffffff",
         }}
       >
@@ -30,7 +34,7 @@ export default async function Image() {
           style={{
             marginTop: 22,
             fontSize: 30,
-            color: "#cfe0f7",
+            color: "rgba(255,255,255,0.85)",
             maxWidth: 900,
             textAlign: "center",
           }}

@@ -12,9 +12,11 @@ import type {
   PageKey,
   SiteSettingsDto,
   StorefrontCopyDto,
+  ThemeDto,
   UpdateCollectionSectionBody,
   UpdateFaqBody,
   UpdateFlashSaleBody,
+  UpdateThemeBody,
 } from "./types";
 
 export function getSiteSettings(): Promise<SiteSettingsDto> {
@@ -43,6 +45,10 @@ export function getPage(key: PageKey): Promise<PageContentDto> {
 
 export function getFaqs(): Promise<FaqDto[]> {
   return apiFetch<FaqDto[]>("/api/content/faqs");
+}
+
+export function getTheme(): Promise<ThemeDto> {
+  return apiFetch<ThemeDto>("/api/content/theme");
 }
 
 // --- Admin mutations -------------------------------------------------------------
@@ -84,4 +90,8 @@ export function updateFaq(id: string, body: UpdateFaqBody): Promise<FaqDto> {
 
 export function deleteFaq(id: string): Promise<void> {
   return apiFetch<void>(`/api/admin/content/faqs/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export function updateTheme(body: UpdateThemeBody): Promise<ThemeDto> {
+  return apiFetch<ThemeDto>("/api/admin/content/theme", { method: "PATCH", body });
 }

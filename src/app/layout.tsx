@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Playfair_Display, Inter } from "next/font/google";
 import { SITE } from "@/lib/constants";
 import { DEFAULT_SITE_SETTINGS } from "@/lib/site-settings";
+import { getServerTheme, themeStyleTag } from "@/lib/theme";
 import { AppProviders } from "./providers";
 import "./globals.css";
 
@@ -44,9 +45,16 @@ export const metadata: Metadata = {
 // Deliberately minimal: the storefront's chrome (header/footer/cart) lives
 // in (storefront)/layout.tsx, and /admin has its own separate shell —
 // neither should leak into the other.
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const theme = await getServerTheme();
+
   return (
     <html lang="en" className={`${heading.variable} ${body.variable} h-full antialiased`}>
+      {/* Server-rendered so the owner's colors are already correct on the very
+          first paint — a client-side fetch would flash the defaults first. */}
+      <head>
+        <style dangerouslySetInnerHTML={{ __html: themeStyleTag(theme) }} />
+      </head>
       <body className="min-h-full flex flex-col">
         <AppProviders>{children}</AppProviders>
       </body>

@@ -197,6 +197,13 @@ export interface AdminSiteSettingsBody extends Partial<SiteSettingsDto> {
   notifyByWhatsapp?: boolean;
 }
 
+export interface ThemeDto {
+  primary: string;
+  accent: string;
+}
+
+export type UpdateThemeBody = Partial<ThemeDto>;
+
 // Opaque — shape owned by src/lib/storefront-copy.ts, backend stores/returns it verbatim.
 export type StorefrontCopyDto = Record<string, unknown>;
 
