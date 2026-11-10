@@ -71,7 +71,13 @@ interface RequestOptions {
 const MUTATING_METHODS: HttpMethod[] = ["POST", "PATCH", "PUT", "DELETE"];
 
 function buildUrl(path: string, query?: RequestOptions["query"]): string {
-  const url = new URL(`${API_BASE_URL}${path}`);
+  // API_BASE_URL is "" in production (same-origin calls through the proxy rewrite), which
+  // makes `${API_BASE_URL}${path}` a path-only string like "/api/auth/login" — new URL()
+  // throws on that without a base. Passing window.location.origin as base handles it;
+  // it's ignored when API_BASE_URL is already absolute (local dev). Server-side callers
+  // (no window) must already have an absolute API_BASE_URL — see config.ts.
+  const base = typeof window !== "undefined" ? window.location.origin : undefined;
+  const url = new URL(`${API_BASE_URL}${path}`, base);
   if (query) {
     for (const [key, value] of Object.entries(query)) {
       if (value === undefined || value === null || value === "") continue;
