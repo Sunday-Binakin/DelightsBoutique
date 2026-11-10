@@ -28,7 +28,7 @@ export default function AdminContentPage() {
 
       <h1 className="font-serif text-2xl font-semibold text-foreground">Site Content</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Edit what shows up on the storefront — no developer needed.
+        Edit what shows up on the storefront.
       </p>
 
       <div className="mt-6">
