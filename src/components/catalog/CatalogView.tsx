@@ -80,6 +80,7 @@ export function CatalogView({
                     name="price"
                     checked={filters.priceBand === index}
                     onChange={() => onFiltersChange({ ...filters, priceBand: index })}
+                    className="h-4 w-4 accent-primary"
                   />
                   {band.label}
                 </label>
